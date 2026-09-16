@@ -7,6 +7,11 @@ const CASES: Array<[string, RegExp]> = [
   ['enchant', /Enchanter/],
   ['stonecutter', /Stonecutter/],
   ['loom', /Loom/],
+  ['beacon', /Beacon/],
+  ['grindstone', /Grindstone/],
+  ['lectern', /Lectern/],
+  ['smithing', /Smithing/],
+  ['cartography', /Cartography/],
 ];
 
 for (const [id, title] of CASES) {

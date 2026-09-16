@@ -1,0 +1,7 @@
+id: lectern
+type: LECTERN
+title: "<yellow>Lectern <dark_gray>(%player%)"
+deposit: [0]
+slots:
+  0:
+    material: AIR

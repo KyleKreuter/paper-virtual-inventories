@@ -173,4 +173,50 @@ class MenuCompilerTest {
                 Map.of(0, airSlot()), "HOPPER", List.of(0));
         assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
     }
+
+    @Test
+    void validBeaconCompiles() {
+        MenuDefinition def = new MenuDefinition("b", 1, "T",
+                Map.of(0, airSlot()), "BEACON", List.of(0));
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("BEACON", form.windowType());
+        assertFalse(form.isAnvil());
+    }
+
+    @Test
+    void validGrindstoneCompiles() {
+        MenuDefinition def = new MenuDefinition("g", 1, "T",
+                Map.of(0, airSlot(), 1, airSlot()), "GRINDSTONE", List.of(0, 1));
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("GRINDSTONE", form.windowType());
+        assertFalse(form.isAnvil());
+    }
+
+    @Test
+    void validLecternCompiles() {
+        MenuDefinition def = new MenuDefinition("l", 1, "T",
+                Map.of(0, airSlot()), "LECTERN", List.of(0));
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("LECTERN", form.windowType());
+        assertFalse(form.isAnvil());
+    }
+
+    @Test
+    void validSmithingCompilesWithFourSlots() {
+        MenuDefinition def = new MenuDefinition("s", 1, "T",
+                Map.of(0, airSlot(), 1, airSlot(), 2, airSlot(), 3, slot("STONE")),
+                "SMITHING", List.of(0, 1, 2));
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("SMITHING", form.windowType());
+        assertFalse(form.isAnvil());
+    }
+
+    @Test
+    void validCartographyCompiles() {
+        MenuDefinition def = new MenuDefinition("c", 1, "T",
+                Map.of(0, airSlot(), 1, airSlot()), "CARTOGRAPHY_TABLE", List.of(0, 1));
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("CARTOGRAPHY_TABLE", form.windowType());
+        assertFalse(form.isAnvil());
+    }
 }

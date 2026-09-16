@@ -130,14 +130,19 @@ Supported window types and their vanilla registry IDs (1.21):
 | `GENERIC_3X3` | 6 | 9 | dispenser/dropper look |
 | `CRAFTER_3X3` | 7 | 9 | ⚠ not the anvil — the ID gap is real |
 | `ANVIL` | 8 | 3 | rename pipeline + deposit slots |
+| `BEACON` | 9 | 1 | payment deposit + button 0 (demo: no game logic) |
 | `BREWING_STAND` | 11 | 5 | container data 0–1 |
 | `ENCHANTMENT` | 13 | 2 | levels via container data 0–2, buttons 0–2 |
 | `FURNACE` | 14 | 3 | container data 0–3 |
+| `GRINDSTONE` | 15 | 3 | deposit in, output out (demo) |
 | `HOPPER` | 16 | 5 | |
+| `LECTERN` | 17 | 1 | book deposit (demo) |
 | `LOOM` | 18 | 4 | options-UI pattern (see demo) |
 | `MERCHANT` | 19 | 3 | offers packet + trade simulation in demo |
 | `SHULKER_BOX` | 20 | 27 | |
+| `SMITHING` | 21 | 4 | template/base/addition deposit + output |
 | `SMOKER`/`BLAST_FURNACE` | 22/10 | 3 | same data layout as furnace |
+| `CARTOGRAPHY_TABLE` | 23 | 3 | map + paper deposit, output (demo) |
 | `STONECUTTER` | 24 | 2 | options-UI pattern (see demo) |
 
 Rule of thumb: `CHEST` for navigation, `ANVIL` for text input, furnace/brewing for
@@ -166,14 +171,14 @@ versions (`ref` IDs resolve against the version-bound `items.yml` at load).
 ## Build, test, run
 
 ```bash
-./gradlew build          # core + demo, 71 unit tests
+./gradlew build          # core + demo, 82 unit tests
 ./gradlew :demo:shadowJar # fat jar → docker/plugins/
 docker compose up -d     # Paper 1.21.8, PacketEvents/Via* via docker/plugins
 ```
 
 E2E: `./gradlew :demo:plugwrightTest` — boots a real Paper 1.21.8, drives Mineflayer bots
-through 22 specs (open/title, no-dupe click, lore refresh, pagination, anvil rename,
-merchant offers, item refs, reload). Dev loop notes: test server uses game port **25566** and RCON
+through 27 specs (open/title, no-dupe click, lore refresh, pagination, anvil rename,
+merchant offers, item refs, machine windows, reload). Dev loop notes: test server uses game port **25566** and RCON
 **25576** (the docker dev server owns 25565/25575); specs live in `demo/src/test/e2e/tests/`.
 
 In-game demo commands: `/vmenu [id]` · `/vpaged` · `/vname` · `/vitem` · `/vreload`.

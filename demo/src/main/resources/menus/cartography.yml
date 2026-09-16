@@ -1,0 +1,12 @@
+id: cartography
+type: CARTOGRAPHY_TABLE
+title: "<aqua>Cartography <dark_gray>(%player%)"
+deposit: [0, 1]
+output: [2]
+slots:
+  0:
+    material: AIR
+  1:
+    material: AIR
+  2:
+    material: AIR

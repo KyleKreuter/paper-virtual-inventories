@@ -7,7 +7,8 @@ test('vreload recompiles and loads all menus', async ({ player, server }) => {
   await player.chat('/vreload');
   for (const id of ['demo', 'paged1', 'paged2', 'paged3', 'name',
     'hopper', 'shulker', 'dispenser', 'crafter',
-    'furnace', 'smoker', 'brewing', 'merchant', 'enchant', 'stonecutter', 'loom']) {
+    'furnace', 'smoker', 'brewing', 'merchant', 'enchant', 'stonecutter', 'loom',
+    'beacon', 'grindstone', 'lectern', 'smithing', 'cartography']) {
     await expect(server).toHaveReceivedMessage(`Loaded compiled menu '${id}'`);
   }
 });

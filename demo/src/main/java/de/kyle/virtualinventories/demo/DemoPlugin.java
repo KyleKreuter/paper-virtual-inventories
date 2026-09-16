@@ -34,8 +34,8 @@ import java.util.UUID;
  * placeholders and click actions are registered in code.
  * Open with /vmenu (dynamic values), /vpaged (multi-page YAML menus),
  * /vname (anvil text input + deposit slot), /vmenu furnace|smoker (live
- * container-data ticker), /vmenu brewing|merchant|enchant|stonecutter|loom
- * or /vreload (recompile YAML).
+ * container-data ticker), /vmenu brewing|merchant|enchant|stonecutter|loom,
+ * /vmenu beacon|grindstone|lectern|smithing|cartography or /vreload (recompile YAML).
  */
 public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
 
@@ -77,6 +77,14 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         menus.action("enchant_2", ctx -> enchant(ctx.player(), ctx.session(), 2));
         menus.action("enchant_3", ctx -> enchant(ctx.player(), ctx.session(), 3));
         menus.action("trade", ctx -> trade(ctx.player(), ctx.session()));
+        menus.action("beacon_select", ctx -> {
+            ItemStack payment = ctx.session().deposit(0);
+            if (payment == null || payment.getType().isAir()) {
+                ctx.player().sendMessage("Insert a payment item into the beacon slot first.");
+                return;
+            }
+            ctx.player().sendMessage("Beacon effect selected (demo: no game logic applied).");
+        });
 
         menus.hooks("demo", new MenuHooks(
                 (player, session) -> player.sendMessage("Welcome to the compiled demo menu."),
@@ -108,6 +116,11 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         saveResource("menus/enchant.yml", false);
         saveResource("menus/stonecutter.yml", false);
         saveResource("menus/loom.yml", false);
+        saveResource("menus/beacon.yml", false);
+        saveResource("menus/grindstone.yml", false);
+        saveResource("menus/lectern.yml", false);
+        saveResource("menus/smithing.yml", false);
+        saveResource("menus/cartography.yml", false);
         menus.loadDirectory();
 
         new BukkitRunnable() {

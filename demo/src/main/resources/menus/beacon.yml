@@ -1,0 +1,9 @@
+id: beacon
+type: BEACON
+title: "<gold>Beacon <dark_gray>(%player%)"
+deposit: [0]
+buttons:
+  0: beacon_select
+slots:
+  0:
+    material: AIR
