@@ -291,7 +291,7 @@ public final class InMemoryMenuProvider implements MenuProvider {
 
     private List<Map.Entry<Integer, String>> actionEntries(CompiledMenu menu) {
         List<Map.Entry<Integer, String>> entries = new ArrayList<>();
-        for (int slot = 0; slot < menu.size().slots(); slot++) {
+        for (int slot = 0; slot < menu.slotCount(); slot++) {
             String action = menu.action(slot);
             if (action != null) {
                 entries.add(Map.entry(slot, action));

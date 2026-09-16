@@ -19,14 +19,17 @@ import java.util.zip.GZIPOutputStream;
  *
  * <pre>
  * gzip( magic "VMNU" | version u8 | sourceSha 32B | menuId utf
- *     | rows u8 | title segments | slotCount u16 | slots... | crc32 )
+ *     | rows u8 | windowType utf | depositCount u8 | depositSlots u8...
+ *     | title segments | slotCount u16 | slots... | crc32 )
  * </pre>
+ *
+ * <p>Version 1 blobs are rejected with a clear recompile hint.</p>
  *
  * <p>Pure logic, no Bukkit dependency (unit-testable).</p>
  */
 public final class MenuCodec {
 
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
     private static final byte[] MAGIC = {'V', 'M', 'N', 'U'};
 
     private MenuCodec() {
@@ -41,6 +44,11 @@ public final class MenuCodec {
             out.write(hexToBytes(form.sourceShaHex()));
             out.writeUTF(form.menuId());
             out.writeByte(form.rows());
+            out.writeUTF(form.windowType());
+            out.writeByte(form.depositSlots().size());
+            for (int deposit : form.depositSlots()) {
+                out.writeByte(deposit);
+            }
             writeSegments(out, form.title());
             out.writeShort(form.slots().size());
             for (CompiledForm.CompiledSlot slot : form.slots()) {
@@ -73,6 +81,11 @@ public final class MenuCodec {
                 throw new MenuCompileException("Not a compiled menu blob (bad magic)");
             }
             int version = in.readUnsignedByte();
+            if (version == 1) {
+                throw new MenuCompileException("Compiled menu was built with format v1 "
+                        + "(no window types) — please recompile: delete compiled/*.vmenu.gz "
+                        + "or run /vreload");
+            }
             if (version != FORMAT_VERSION) {
                 throw new MenuCompileException("Unsupported compiled menu version " + version
                         + " (lib supports " + FORMAT_VERSION + ")");
@@ -81,6 +94,12 @@ public final class MenuCodec {
             in.readFully(sha);
             String menuId = in.readUTF();
             int rows = in.readUnsignedByte();
+            String windowType = in.readUTF();
+            int depositCount = in.readUnsignedByte();
+            List<Integer> depositSlots = new ArrayList<>(depositCount);
+            for (int i = 0; i < depositCount; i++) {
+                depositSlots.add(in.readUnsignedByte());
+            }
             List<Segment> title = readSegments(in);
             int slotCount = in.readUnsignedShort();
             List<CompiledForm.CompiledSlot> slots = new ArrayList<>(slotCount);
@@ -103,7 +122,8 @@ public final class MenuCodec {
                     keys.add(slot.amountPlaceholder());
                 }
             }
-            return new CompiledForm(menuId, rows, title, slots, keys, bytesToHex(sha));
+            return new CompiledForm(menuId, rows, windowType, depositSlots, title, slots, keys,
+                    bytesToHex(sha));
         } catch (EOFException e) {
             throw new MenuCompileException("Compiled menu blob is truncated");
         } catch (IOException e) {

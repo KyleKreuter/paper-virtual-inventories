@@ -45,6 +45,7 @@ public final class MenuSession {
     private final AtomicInteger stateId = new AtomicInteger(1);
     private ItemStack[] lastContent;
     private boolean open;
+    private long lastRenameNanos;
 
     MenuSession(Plugin plugin, SessionManager manager, MenuPacketSender sender,
                 Player player, CompiledMenu menu, MenuView view,
@@ -147,6 +148,18 @@ public final class MenuSession {
             return;
         }
         ItemStack[] content = renderer.get();
+        // Deposit slots hold real player items server-side; the renderer only
+        // produces visuals, so re-apply deposits after every re-render.
+        if (lastContent != null && !menu.depositSlots().isEmpty()) {
+            for (int slot : menu.depositSlots()) {
+                if (slot >= 0 && slot < lastContent.length && slot < content.length) {
+                    ItemStack kept = lastContent[slot];
+                    if (kept != null && !kept.getType().isAir()) {
+                        content[slot] = kept;
+                    }
+                }
+            }
+        }
         lastContent = content;
         sender.sendFullContents(player, containerId, nextStateId(), content);
         sender.syncCursor(player);
@@ -162,7 +175,7 @@ public final class MenuSession {
     }
 
     private void setSlotNow(int slot, ItemStack icon) {
-        if (!open || slot < 0 || slot >= menu.size().slots()) {
+        if (!open || slot < 0 || slot >= menu.slotCount()) {
             return;
         }
         if (lastContent != null) {
@@ -180,12 +193,211 @@ public final class MenuSession {
         return stack == null ? null : stack.clone();
     }
 
+    /**
+     * Applies a rename text typed into an anvil window. Throttled (100 ms):
+     * the client sends a packet per keystroke. Texts longer than 50 chars
+     * are truncated (vanilla anvil limit).
+     */
+    public void handleRename(String text) {
+        if (!open || !menu.windowType().isAnvil()) {
+            return;
+        }
+        long now = System.nanoTime();
+        if (now - lastRenameNanos < 100_000_000L) {
+            return;
+        }
+        lastRenameNanos = now;
+        String clean = text == null ? "" : text;
+        view.text(clean.length() > 50 ? clean.substring(0, 50) : clean);
+    }
+
+    /**
+     * Moves items between a deposit slot and the player, fully server-side.
+     * The client prediction was already cancelled; only these mutations stick.
+     */
+    public void handleDeposit(int rawSlot, de.kyle.virtualinventories.menu.ClickType type, int button) {
+        if (!open || !menu.windowType().isAnvil()) {
+            return;
+        }
+        boolean bottom = rawSlot < 0 || rawSlot >= menu.slotCount();
+        if (!bottom && !menu.isDepositSlot(rawSlot)) {
+            return;
+        }
+        switch (type) {
+            case LEFT -> {
+                if (!bottom) {
+                    swapWithCursor(rawSlot);
+                }
+            }
+            case RIGHT -> {
+                if (!bottom) {
+                    placeOrTakeOne(rawSlot);
+                }
+            }
+            case SHIFT_LEFT, SHIFT_RIGHT -> transfer(rawSlot, bottom);
+            case DROP -> {
+                if (!bottom) {
+                    dropStack(rawSlot);
+                }
+            }
+            default -> {
+                // Anything else (number keys, drags, ...) is cancelled with no effect.
+            }
+        }
+        sender.syncCursor(player);
+    }
+
+    private ItemStack depositStack(int slot) {
+        if (lastContent == null || slot < 0 || slot >= lastContent.length) {
+            return ItemStack.empty();
+        }
+        ItemStack stack = lastContent[slot];
+        return stack == null ? ItemStack.empty() : stack;
+    }
+
+    private void setDepositStack(int slot, ItemStack stack) {
+        ItemStack copy = stack == null || stack.getType().isAir() ? ItemStack.empty() : stack.clone();
+        if (lastContent != null && slot >= 0 && slot < lastContent.length) {
+            lastContent[slot] = copy;
+        }
+        sender.sendSingleSlot(player, containerId, nextStateId(), slot, copy);
+    }
+
+    private void swapWithCursor(int slot) {
+        ItemStack cursor = player.getItemOnCursor();
+        ItemStack inSlot = depositStack(slot);
+        player.setItemOnCursor(inSlot.getType().isAir() ? ItemStack.empty() : inSlot.clone());
+        setDepositStack(slot, cursor);
+    }
+
+    private void placeOrTakeOne(int slot) {
+        ItemStack cursor = player.getItemOnCursor();
+        ItemStack inSlot = depositStack(slot);
+        boolean cursorEmpty = cursor.getType().isAir();
+        boolean slotEmpty = inSlot.getType().isAir();
+        if (cursorEmpty && !slotEmpty) {
+            // Pick up half (rounded up).
+            int take = (inSlot.getAmount() + 1) / 2;
+            ItemStack taken = inSlot.clone();
+            taken.setAmount(take);
+            player.setItemOnCursor(taken);
+            if (inSlot.getAmount() <= take) {
+                setDepositStack(slot, ItemStack.empty());
+            } else {
+                inSlot.setAmount(inSlot.getAmount() - take);
+                setDepositStack(slot, inSlot);
+            }
+        } else if (!cursorEmpty && (slotEmpty || (inSlot.isSimilar(cursor)
+                && inSlot.getAmount() < inSlot.getMaxStackSize()))) {
+            // Place a single item.
+            ItemStack one = cursor.clone();
+            one.setAmount(1);
+            if (slotEmpty) {
+                setDepositStack(slot, one);
+            } else {
+                inSlot.setAmount(inSlot.getAmount() + 1);
+                setDepositStack(slot, inSlot);
+            }
+            if (cursor.getAmount() <= 1) {
+                player.setItemOnCursor(ItemStack.empty());
+            } else {
+                cursor.setAmount(cursor.getAmount() - 1);
+                player.setItemOnCursor(cursor);
+            }
+        }
+    }
+
+    private void transfer(int rawSlot, boolean bottom) {
+        if (!bottom) {
+            // Deposit slot -> player inventory.
+            ItemStack inSlot = depositStack(rawSlot);
+            if (inSlot.getType().isAir()) {
+                return;
+            }
+            Map<Integer, ItemStack> leftovers =
+                    player.getInventory().addItem(inSlot.clone());
+            ItemStack rest = leftovers.values().stream().findFirst().orElse(ItemStack.empty());
+            setDepositStack(rawSlot, rest);
+        } else {
+            // Player inventory -> first empty deposit slot.
+            int playerSlot = toPlayerSlot(rawSlot);
+            if (playerSlot < 0) {
+                return;
+            }
+            ItemStack carried = player.getInventory().getItem(playerSlot);
+            if (carried == null || carried.getType().isAir()) {
+                return;
+            }
+            for (int deposit : menu.depositSlots()) {
+                if (depositStack(deposit).getType().isAir()) {
+                    setDepositStack(deposit, carried.clone());
+                    player.getInventory().setItem(playerSlot, ItemStack.empty());
+                    player.updateInventory();
+                    return;
+                }
+            }
+        }
+    }
+
+    private void dropStack(int slot) {
+        ItemStack inSlot = depositStack(slot);
+        if (inSlot.getType().isAir()) {
+            return;
+        }
+        setDepositStack(slot, ItemStack.empty());
+        player.getWorld().dropItemNaturally(player.getLocation(), inSlot.clone());
+    }
+
+    /** Maps a bottom raw slot to a player inventory slot index, or -1. */
+    private int toPlayerSlot(int rawSlot) {
+        int idx = rawSlot - menu.slotCount();
+        if (idx < 0 || idx >= 36) {
+            return -1;
+        }
+        return idx < 27 ? idx + 9 : idx - 27;
+    }
+
+    /**
+     * Returns all deposited items to the player. Runs on close and on silent
+     * discard (quit/death): leftovers go to the inventory, or drop at the
+     * player's feet when online and full.
+     */
+    private void returnDeposits() {
+        if (menu.depositSlots().isEmpty() || lastContent == null) {
+            return;
+        }
+        for (int slot : menu.depositSlots()) {
+            if (slot < 0 || slot >= lastContent.length) {
+                continue;
+            }
+            ItemStack stack = lastContent[slot];
+            lastContent[slot] = ItemStack.empty();
+            if (stack == null || stack.getType().isAir()) {
+                continue;
+            }
+            Map<Integer, ItemStack> leftovers = player.getInventory().addItem(stack.clone());
+            for (ItemStack rest : leftovers.values()) {
+                if (player.isOnline()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), rest);
+                } else {
+                    plugin.getLogger().warning("Menu '" + menu.id()
+                            + "' dropped deposited items for offline player " + player.getName()
+                            + " (inventory full)");
+                }
+            }
+        }
+        if (player.isOnline()) {
+            player.updateInventory();
+        }
+    }
+
     /** Closes the menu server-side and tells the client to close the screen. */
     public void close() {
         if (!open) {
             return;
         }
         open = false;
+        returnDeposits();
         manager.forget(playerId, this);
         try {
             if (hooks.onClose() != null) {
@@ -201,6 +413,7 @@ public final class MenuSession {
     /** Removes the session without sending packets (player gone or dead). */
     void discard() {
         open = false;
+        returnDeposits();
         manager.forget(playerId, this);
     }
 }

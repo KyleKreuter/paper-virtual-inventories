@@ -42,7 +42,7 @@ public final class SessionManager {
         MenuSession session = new MenuSession(plugin, this, sender, player, menu, view,
                 handlers, hooks == null ? MenuHooks.empty() : hooks, renderer, title, containerId);
         sessions.put(player.getUniqueId(), session);
-        sender.sendOpen(player, containerId, menu.size(), title);
+        sender.sendOpen(player, containerId, menu.windowType(), title);
         sender.sendFullContents(player, containerId, session.nextStateId(), content);
         sender.syncCursor(player);
         session.markOpen(content);
@@ -69,7 +69,8 @@ public final class SessionManager {
                                      MenuSession.ContentRenderer renderer) {
         MenuSession current = sessions.get(player.getUniqueId());
         if (current != null && current.isOpen()
-                && current.menu().size() == menu.size()
+                && current.menu().windowType() == menu.windowType()
+                && current.menu().slotCount() == menu.slotCount()
                 && current.title().equals(title)) {
             current.retarget(menu, view, handlers,
                     hooks == null ? MenuHooks.empty() : hooks, renderer);
@@ -77,10 +78,18 @@ public final class SessionManager {
         }
         if (current != null) {
             plugin.getLogger().info("switchSession falls back to reopen for '" + menu.id()
-                    + "' (current=" + current.menu().id() + "/" + current.menu().size()
-                    + (current.isOpen() ? "" : "/closed") + ", new=" + menu.size() + ")");
+                    + "' (current=" + current.menu().id() + "/" + current.menu().windowType()
+                    + (current.isOpen() ? "" : "/closed") + ", new=" + menu.windowType() + ")");
         }
         return openSession(player, menu, view, handlers, hooks, title, content, renderer);
+    }
+
+    /** Applies rename text typed into the player's open anvil menu, if any. */
+    public void handleRename(Player player, String text) {
+        MenuSession session = sessions.get(player.getUniqueId());
+        if (session != null && session.isOpen()) {
+            session.handleRename(text);
+        }
     }
 
     public void close(Player player) {

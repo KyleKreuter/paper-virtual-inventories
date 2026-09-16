@@ -16,8 +16,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 /**
  * Demo plugin for the compiled-menu v1 API: menus come from YAML files,
  * placeholders and click actions are registered in code.
- * Open with /vmenu (dynamic values), /vpaged (multi-page YAML menus) or
- * /vreload (recompile YAML + refresh *.vmenu.gz blobs).
+ * Open with /vmenu (dynamic values), /vpaged (multi-page YAML menus),
+ * /vname (anvil text input + deposit slot) or /vreload (recompile YAML).
  */
 public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
 
@@ -46,6 +46,12 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         menus.action("open_paged1", ctx -> switchPage(ctx.player(), "paged1"));
         menus.action("open_paged2", ctx -> switchPage(ctx.player(), "paged2"));
         menus.action("open_paged3", ctx -> switchPage(ctx.player(), "paged3"));
+        menus.action("confirm_name", ctx -> {
+            Player viewer = ctx.player();
+            String text = ctx.session().view().text();
+            viewer.sendMessage("Confirmed name: " + (text.isEmpty() ? "(empty)" : text));
+            VirtualInventories.api().close(viewer);
+        });
 
         menus.hooks("demo", new MenuHooks(
                 (player, session) -> player.sendMessage("Welcome to the compiled demo menu."),
@@ -55,10 +61,12 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         saveResource("menus/paged1.yml", false);
         saveResource("menus/paged2.yml", false);
         saveResource("menus/paged3.yml", false);
+        saveResource("menus/name.yml", false);
         menus.loadDirectory();
 
         getCommand("vmenu").setExecutor(this);
         getCommand("vpaged").setExecutor(this);
+        getCommand("vname").setExecutor(this);
         getCommand("vreload").setExecutor(this);
     }
 
@@ -80,6 +88,7 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         try {
             switch (command.getName().toLowerCase()) {
                 case "vpaged" -> menus.open(player, "paged1");
+                case "vname" -> menus.open(player, "name");
                 case "vreload" -> {
                     menus.reload();
                     player.sendMessage("Reloaded " + menus.menuIds().size()

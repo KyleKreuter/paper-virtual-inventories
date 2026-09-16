@@ -6,11 +6,24 @@ import java.util.Map;
 /**
  * Human-readable menu definition (parsed from YAML or built in code).
  * This is the input of the compiler, never used at open time directly.
+ *
+ * <p>{@code type} is {@code CHEST} (default, needs {@code rows: 1-6}) or
+ * {@code ANVIL} (fixed 3-slot window, {@code rows} is ignored). {@code deposit}
+ * lists player-fillable slots; only meaningful for anvils (defaults to
+ * {@code [0, 1]} there, must be empty for chests).</p>
  */
-public record MenuDefinition(String id, int rows, String title, Map<Integer, SlotDefinition> slots) {
+public record MenuDefinition(String id, int rows, String title, Map<Integer, SlotDefinition> slots,
+                             String type, List<Integer> depositSlots) {
 
     public MenuDefinition {
         slots = Map.copyOf(slots);
+        type = type == null ? "CHEST" : type.strip().toUpperCase(java.util.Locale.ROOT);
+        depositSlots = List.copyOf(depositSlots);
+    }
+
+    /** Backwards-compatible constructor for chest menus without deposit slots. */
+    public MenuDefinition(String id, int rows, String title, Map<Integer, SlotDefinition> slots) {
+        this(id, rows, title, slots, "CHEST", List.of());
     }
 
     /** One filled slot: visual template plus optional click-action id. */

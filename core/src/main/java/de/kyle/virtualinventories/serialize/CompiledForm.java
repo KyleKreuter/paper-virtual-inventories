@@ -12,15 +12,22 @@ import java.util.Set;
 public record CompiledForm(
         String menuId,
         int rows,
+        String windowType,
+        List<Integer> depositSlots,
         List<Segment> title,
         List<CompiledSlot> slots,
         Set<String> placeholderKeys,
         String sourceShaHex) {
 
     public CompiledForm {
+        depositSlots = List.copyOf(depositSlots);
         title = List.copyOf(title);
         slots = List.copyOf(slots);
         placeholderKeys = Set.copyOf(placeholderKeys);
+    }
+
+    public boolean isAnvil() {
+        return "ANVIL".equals(windowType);
     }
 
     public record CompiledSlot(

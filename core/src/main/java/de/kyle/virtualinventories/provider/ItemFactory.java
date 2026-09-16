@@ -30,8 +30,12 @@ final class ItemFactory {
                            List<List<de.kyle.virtualinventories.serialize.Segment>> lore,
                            List<String> flags, Integer customModelData, Map<String, String> scope) {
         Material material = Material.matchMaterial(materialKey);
-        if (material == null || material.isAir()) {
+        if (material == null) {
             throw MenuCompileException.at(menuId, "slots." + slot, "unknown material '" + materialKey + "'");
+        }
+        if (material.isAir()) {
+            // Deposit-slot placeholder: renders as an empty slot, never shown as an item.
+            return ItemStack.empty();
         }
         ItemStack stack = new ItemStack(material, Math.max(1, Math.min(99, amount)));
         ItemMeta meta = stack.getItemMeta();

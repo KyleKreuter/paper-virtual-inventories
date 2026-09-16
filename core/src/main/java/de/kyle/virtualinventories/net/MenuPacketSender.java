@@ -8,7 +8,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOp
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetCursorItem;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
-import de.kyle.virtualinventories.menu.MenuSize;
+import de.kyle.virtualinventories.menu.WindowType;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -26,9 +26,9 @@ import java.util.List;
  */
 public final class MenuPacketSender {
 
-    public void sendOpen(Player player, int containerId, MenuSize size, Component title) {
+    public void sendOpen(Player player, int containerId, WindowType type, Component title) {
         WrapperPlayServerOpenWindow open =
-                new WrapperPlayServerOpenWindow(containerId, size.windowTypeId(), title);
+                new WrapperPlayServerOpenWindow(containerId, type.typeId(), title);
         send(player, open);
     }
 

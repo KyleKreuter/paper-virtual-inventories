@@ -1,6 +1,9 @@
+import me.drownek.plugwright.local.LocalMode
+
 plugins {
     java
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("io.github.drownek.plugwright") version "3.0.0"
 }
 
 description = "Demo plugin showing packet-based virtual inventories"
@@ -21,4 +24,22 @@ tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJ
 
 tasks.named("build") {
     dependsOn("shadowJar")
+}
+
+plugwright {
+    testsDir.set(file("src/test/e2e"))
+
+    environments {
+        create("local", LocalMode) {
+            minecraftVersion.set("1.21.8")
+            acceptEula.set(true)
+            // Dev docker server already occupies 25565 (game) and 25575 (RCON).
+            port.set(25566)
+            rconPort.set(25576)
+
+            downloadPlugins {
+                url("https://github.com/retrooper/packetevents/releases/download/v2.13.0/packetevents-spigot-2.13.0.jar")
+            }
+        }
+    }
 }

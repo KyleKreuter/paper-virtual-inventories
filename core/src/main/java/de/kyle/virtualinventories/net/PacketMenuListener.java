@@ -4,6 +4,7 @@ import com.github.retrooper.packetevents.event.PacketListener;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientNameItem;
 import de.kyle.virtualinventories.menu.ClickContext;
 import de.kyle.virtualinventories.menu.ClickType;
 import de.kyle.virtualinventories.session.MenuSession;
@@ -43,6 +44,11 @@ public final class PacketMenuListener implements PacketListener {
 
         if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
             handleClick(event, playerId);
+        } else if (event.getPacketType() == PacketType.Play.Client.NAME_ITEM) {
+            // Anvil rename keystroke. The server never opened a real anvil, so
+            // vanilla must not see this — store the text server-side instead.
+            event.setCancelled(true);
+            handleRename(event, playerId);
         } else if (event.getPacketType() == PacketType.Play.Client.CLOSE_WINDOW) {
             // Client closed the screen (ESC, E, ...). Swallow it, there is no
             // server-side container to close, and clean up the session.
@@ -87,6 +93,26 @@ public final class PacketMenuListener implements PacketListener {
         Bukkit.getScheduler().runTask(plugin, () -> dispatchClick(playerId, windowId, rawSlot, button, clickName));
     }
 
+    private void handleRename(PacketReceiveEvent event, UUID playerId) {
+        final String text;
+        try {
+            text = new WrapperPlayClientNameItem(event).getItemName();
+        } catch (Exception e) {
+            plugin.getLogger().warning("Dropped malformed rename packet from " + playerId);
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player != null) {
+                try {
+                    sessions.handleRename(player, text);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Rename handling failed: " + e.getMessage());
+                }
+            }
+        });
+    }
+
     private void dispatchClick(UUID playerId, int windowId, int rawSlot, int button, String clickName) {
         Player player = Bukkit.getPlayer(playerId);
         MenuSession session = sessions.get(playerId);
@@ -94,11 +120,28 @@ public final class PacketMenuListener implements PacketListener {
             return;
         }
 
-        int menuSlots = session.menu().size().slots();
+        int menuSlots = session.menu().slotCount();
         boolean bottom = rawSlot < 0 || rawSlot >= menuSlots;
         int slot = bottom ? -1 : rawSlot;
-        ItemStack snapshot = bottom ? null : session.snapshot(slot);
         ClickType type = ClickType.fromPacket(clickName, button);
+
+        // Deposit slots move real player items server-side; everything else is
+        // a UI event. Shift-clicks from the player inventory fill deposits.
+        if (session.menu().windowType().isAnvil()
+                && ((slot >= 0 && session.menu().isDepositSlot(slot))
+                    || (bottom && (type == ClickType.SHIFT_LEFT || type == ClickType.SHIFT_RIGHT)))) {
+            try {
+                session.handleDeposit(rawSlot, type, button);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Deposit handling failed: " + e.getMessage());
+            }
+            if (session.isOpen()) {
+                session.refresh();
+            }
+            return;
+        }
+
+        ItemStack snapshot = bottom ? null : session.snapshot(slot);
         ClickContext context = new ClickContext(player, session, slot, rawSlot, type, button, snapshot, bottom);
 
         try {

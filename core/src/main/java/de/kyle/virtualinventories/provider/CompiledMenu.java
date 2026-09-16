@@ -1,6 +1,7 @@
 package de.kyle.virtualinventories.provider;
 
 import de.kyle.virtualinventories.menu.MenuSize;
+import de.kyle.virtualinventories.menu.WindowType;
 import de.kyle.virtualinventories.serialize.CompiledForm;
 import de.kyle.virtualinventories.serialize.MenuCompileException;
 import de.kyle.virtualinventories.serialize.Segment;
@@ -25,7 +26,9 @@ public final class CompiledMenu {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private final String id;
+    private final WindowType windowType;
     private final MenuSize size;
+    private final Set<Integer> depositSlots;
     private final List<Segment> title;
     private final ItemStack[] staticItems;
     private final List<DynamicSlot> dynamicSlots;
@@ -38,11 +41,14 @@ public final class CompiledMenu {
                               List<String> flags, Integer customModelData) {
     }
 
-    private CompiledMenu(String id, MenuSize size, List<Segment> title, ItemStack[] staticItems,
+    private CompiledMenu(String id, WindowType windowType, MenuSize size, Set<Integer> depositSlots,
+                         List<Segment> title, ItemStack[] staticItems,
                          List<DynamicSlot> dynamicSlots, Set<String> placeholderKeys,
                          Map<Integer, String> actions) {
         this.id = id;
+        this.windowType = windowType;
         this.size = size;
+        this.depositSlots = depositSlots;
         this.title = title;
         this.staticItems = staticItems;
         this.dynamicSlots = dynamicSlots;
@@ -53,17 +59,26 @@ public final class CompiledMenu {
     /** Builds the runtime menu, pre-building every static slot once. */
     public static CompiledMenu materialize(CompiledForm form) {
         String menuId = form.menuId();
-        if (form.rows() < 1 || form.rows() > 6) {
-            throw MenuCompileException.at(menuId, "rows", "must be 1-6, got " + form.rows());
+        WindowType windowType;
+        try {
+            windowType = WindowType.valueOf(form.windowType());
+        } catch (IllegalArgumentException e) {
+            throw MenuCompileException.at(menuId, "type", "unknown window type '" + form.windowType() + "'");
         }
-        MenuSize size = MenuSize.values()[form.rows() - 1];
-        ItemStack[] staticItems = new ItemStack[size.slots()];
+        MenuSize size = null;
+        if (!windowType.isAnvil()) {
+            if (form.rows() < 1 || form.rows() > 6) {
+                throw MenuCompileException.at(menuId, "rows", "must be 1-6, got " + form.rows());
+            }
+            size = MenuSize.values()[form.rows() - 1];
+        }
+        ItemStack[] staticItems = new ItemStack[windowType.slots()];
         List<DynamicSlot> dynamicSlots = new ArrayList<>();
         Map<Integer, String> actions = new LinkedHashMap<>();
         Map<String, String> emptyScope = Map.of();
 
         for (CompiledForm.CompiledSlot slot : form.slots()) {
-            if (slot.slot() < 0 || slot.slot() >= size.slots()) {
+            if (slot.slot() < 0 || slot.slot() >= windowType.slots()) {
                 throw MenuCompileException.at(menuId, "slots." + slot.slot(), "out of bounds");
             }
             if (slot.action() != null) {
@@ -79,7 +94,8 @@ public final class CompiledMenu {
                         slot.customModelData(), emptyScope);
             }
         }
-        return new CompiledMenu(menuId, size, form.title(), staticItems,
+        return new CompiledMenu(menuId, windowType, size, Set.copyOf(form.depositSlots()),
+                form.title(), staticItems,
                 List.copyOf(dynamicSlots), form.placeholderKeys(), Map.copyOf(actions));
     }
 
@@ -87,8 +103,27 @@ public final class CompiledMenu {
         return id;
     }
 
+    public WindowType windowType() {
+        return windowType;
+    }
+
+    /** Chest grid size, or null for anvil menus. Prefer {@link #slotCount()}. */
     public MenuSize size() {
         return size;
+    }
+
+    /** Total top-inventory slots for this window type. */
+    public int slotCount() {
+        return windowType.slots();
+    }
+
+    /** Deposit slots (anvil only): player items live here server-side. */
+    public Set<Integer> depositSlots() {
+        return depositSlots;
+    }
+
+    public boolean isDepositSlot(int slot) {
+        return depositSlots.contains(slot);
     }
 
     public Set<String> placeholderKeys() {

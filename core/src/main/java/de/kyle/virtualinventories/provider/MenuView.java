@@ -12,6 +12,7 @@ public final class MenuView {
     private final CompiledMenu menu;
     private final Map<String, String> extra;
     private Map<String, String> scope;
+    private String text = "";
 
     MenuView(CompiledMenu menu, Map<String, String> extra, Map<String, String> scope) {
         this.menu = menu;
@@ -33,6 +34,15 @@ public final class MenuView {
 
     public Map<String, String> extra() {
         return extra;
+    }
+
+    /** Last rename text typed by the viewer (anvil only, max 50 chars enforced by session). */
+    public String text() {
+        return text;
+    }
+
+    public void text(String text) {
+        this.text = text == null ? "" : text;
     }
 
     void updateScope(Map<String, String> newScope) {

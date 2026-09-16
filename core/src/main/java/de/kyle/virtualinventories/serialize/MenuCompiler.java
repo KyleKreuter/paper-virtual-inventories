@@ -1,5 +1,7 @@
 package de.kyle.virtualinventories.serialize;
 
+import de.kyle.virtualinventories.menu.WindowType;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,11 +22,38 @@ public final class MenuCompiler {
     public static CompiledForm compile(MenuDefinition definition, String sourceShaHex) {
         String menuId = definition.id();
         requireId(menuId);
-        if (definition.rows() < 1 || definition.rows() > 6) {
-            throw MenuCompileException.at(menuId, "rows", "must be 1-6, got " + definition.rows());
+        WindowType windowType;
+        String type = definition.type();
+        if ("ANVIL".equals(type)) {
+            windowType = WindowType.ANVIL;
+        } else if ("CHEST".equals(type)) {
+            if (definition.rows() < 1 || definition.rows() > 6) {
+                throw MenuCompileException.at(menuId, "rows",
+                        "must be 1-6, got " + definition.rows());
+            }
+            windowType = WindowType.chest(definition.rows());
+        } else {
+            throw MenuCompileException.at(menuId, "type",
+                    "unknown window type '" + type + "' (expected CHEST or ANVIL)");
+        }
+        if (windowType.isAnvil() && definition.rows() != 1) {
+            throw MenuCompileException.at(menuId, "rows",
+                    "anvil menus are single-row (slots 0-2), omit 'rows'");
+        }
+        List<Integer> deposit = List.copyOf(definition.depositSlots());
+        if (!deposit.isEmpty() && !windowType.isAnvil()) {
+            throw MenuCompileException.at(menuId, "deposit",
+                    "'deposit' is only supported for type ANVIL");
+        }
+        for (int slot : deposit) {
+            if (slot < 0 || slot >= windowType.slots()) {
+                throw MenuCompileException.at(menuId, "deposit",
+                        "slot " + slot + " out of bounds for " + windowType + " (0-"
+                                + (windowType.slots() - 1) + ")");
+            }
         }
         String title = definition.title() == null ? "" : definition.title();
-        int maxSlot = definition.rows() * 9;
+        int maxSlot = windowType.isAnvil() ? windowType.slots() : definition.rows() * 9;
 
         List<CompiledForm.CompiledSlot> slots = new ArrayList<>();
         Set<String> keys = new TreeSet<>();
@@ -35,19 +64,30 @@ public final class MenuCompiler {
         for (int slot : ordered) {
             if (slot < 0 || slot >= maxSlot) {
                 throw MenuCompileException.at(menuId, "slots." + slot,
-                        "out of bounds for " + definition.rows() + " rows (0-" + (maxSlot - 1) + ")");
+                        "out of bounds for " + windowType + " (0-" + (maxSlot - 1) + ")");
             }
             MenuDefinition.SlotDefinition slotDef = definition.slots().get(slot);
-            slots.add(compileSlot(menuId, slot, slotDef, keys));
+            slots.add(compileSlot(menuId, slot, slotDef, keys, deposit.contains(slot)));
         }
-        return new CompiledForm(menuId, definition.rows(), Segments.parse(title),
-                List.copyOf(slots), Set.copyOf(keys), sourceShaHex);
+        return new CompiledForm(menuId, definition.rows(), windowType.name(), deposit,
+                Segments.parse(title), List.copyOf(slots), Set.copyOf(keys), sourceShaHex);
     }
 
     private static CompiledForm.CompiledSlot compileSlot(
-            String menuId, int slot, MenuDefinition.SlotDefinition slotDef, Set<String> keys) {
+            String menuId, int slot, MenuDefinition.SlotDefinition slotDef, Set<String> keys,
+            boolean isDeposit) {
         String where = "slots." + slot;
         MenuDefinition.ItemTemplate item = slotDef.item();
+        if (isDeposit) {
+            if (!"AIR".equalsIgnoreCase(item.material())) {
+                throw MenuCompileException.at(menuId, where,
+                        "deposit slots must use material AIR (player items go here)");
+            }
+            if (slotDef.action() != null && !slotDef.action().isBlank()) {
+                throw MenuCompileException.at(menuId, where,
+                        "deposit slots must not define 'action'");
+            }
+        }
         if (item.amount() < 1 || item.amount() > 99) {
             throw MenuCompileException.at(menuId, where, "'amount' must be 1-99, got " + item.amount());
         }

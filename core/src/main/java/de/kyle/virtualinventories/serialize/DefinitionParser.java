@@ -28,7 +28,22 @@ import java.util.Map;
  * }</pre>
  *
  * <p>{@code amount} also accepts a single placeholder ({@code amount: "%kills%"}).
- * Only structural mapping happens here, semantic validation is the compiler's job.</p>
+ * Anvils use {@code type: ANVIL} (fixed window, {@code rows} ignored) plus an
+ * optional {@code deposit: [0, 1]} list of player-fillable slots:</p>
+ * <pre>{@code
+ * type: ANVIL
+ * title: "<gold>Rename item"
+ * deposit: [0, 1]
+ * slots:
+ *   0: {material: AIR}
+ *   1: {material: AIR}
+ *   2:
+ *     material: NAME_TAG
+ *     name: "<green>Done"
+ *     action: submit_name
+ * }</pre>
+ *
+ * <p>Only structural mapping happens here, semantic validation is the compiler's job.</p>
  */
 public final class DefinitionParser {
 
@@ -48,10 +63,17 @@ public final class DefinitionParser {
                     + "' does not match registered id '" + menuId + "'");
         }
         Object rowsRaw = cfg.get("rows");
-        if (!(rowsRaw instanceof Number rows)) {
+        String type = cfg.isString("type") ? cfg.getString("type") : "CHEST";
+        int rows;
+        if (rowsRaw instanceof Number number) {
+            rows = number.intValue();
+        } else if (rowsRaw == null && "ANVIL".equals(type.strip().toUpperCase(java.util.Locale.ROOT))) {
+            rows = 1; // ignored for anvils, the window is fixed
+        } else {
             throw MenuCompileException.at(menuId, "rows", "missing or not a number (expected 1-6)");
         }
         String title = cfg.isString("title") ? cfg.getString("title") : "";
+        List<Integer> deposit = new ArrayList<>(cfg.getIntegerList("deposit"));
 
         ConfigurationSection slotsSection = cfg.getConfigurationSection("slots");
         Map<Integer, MenuDefinition.SlotDefinition> slots = new LinkedHashMap<>();
@@ -72,7 +94,7 @@ public final class DefinitionParser {
                 }
             }
         }
-        return new MenuDefinition(menuId, rows.intValue(), title, slots);
+        return new MenuDefinition(menuId, rows, title, slots, type, deposit);
     }
 
     private static MenuDefinition.SlotDefinition parseSlot(String menuId, int slot, ConfigurationSection sec) {

@@ -74,4 +74,66 @@ class MenuCompilerTest {
         assertThrows(MenuCompileException.class,
                 () -> MenuCompiler.compile(definition(1, Map.of(0, slotDef)), "0".repeat(64)));
     }
+
+    private static MenuDefinition anvilDef(Map<Integer, MenuDefinition.SlotDefinition> slots,
+            List<Integer> deposit) {
+        return new MenuDefinition("anvil", 1, "Name it", slots, "ANVIL", deposit);
+    }
+
+    private static MenuDefinition.SlotDefinition airSlot() {
+        return new MenuDefinition.SlotDefinition(
+                new MenuDefinition.ItemTemplate("AIR", 1, null, null, List.of(), List.of(), null), null);
+    }
+
+    @Test
+    void validAnvilCompiles() {
+        MenuDefinition def = anvilDef(Map.of(
+                0, airSlot(),
+                1, slot("PAPER"),
+                2, new MenuDefinition.SlotDefinition(
+                        MenuDefinition.ItemTemplate.simple("NAME_TAG", "OK"), "confirm")), List.of(0));
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("ANVIL", form.windowType());
+        assertEquals(List.of(0), form.depositSlots());
+        assertTrue(form.isAnvil());
+    }
+
+    @Test
+    void anvilRowsMustBeOne() {
+        MenuDefinition def = new MenuDefinition("a", 2, "T", Map.of(), "ANVIL", List.of());
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
+    }
+
+    @Test
+    void anvilSlotOutOfBoundsFails() {
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(
+                anvilDef(Map.of(3, slot("STONE")), List.of()), "0".repeat(64)));
+    }
+
+    @Test
+    void depositMustBeAir() {
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(
+                anvilDef(Map.of(0, slot("STONE")), List.of(0)), "0".repeat(64)));
+    }
+
+    @Test
+    void depositMustNotHaveAction() {
+        MenuDefinition.SlotDefinition withAction = new MenuDefinition.SlotDefinition(
+                new MenuDefinition.ItemTemplate("AIR", 1, null, null, List.of(), List.of(), null), "take");
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(
+                anvilDef(Map.of(0, withAction), List.of(0)), "0".repeat(64)));
+    }
+
+    @Test
+    void chestMustNotHaveDeposit() {
+        MenuDefinition def = new MenuDefinition("c", 1, "T",
+                Map.of(0, airSlot()), "CHEST", List.of(0));
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
+    }
+
+    @Test
+    void unknownWindowTypeFails() {
+        MenuDefinition def = new MenuDefinition("u", 1, "T", Map.of(), "FURNACE", List.of());
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
+    }
 }

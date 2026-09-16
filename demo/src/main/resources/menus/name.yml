@@ -1,0 +1,16 @@
+id: name
+type: ANVIL
+title: "<gold>Name it, %player%"
+slots:
+  0:
+    material: AIR
+  1:
+    material: PAPER
+    name: "<gray>Type in the field above"
+    lore:
+      - "<dark_gray>Then take an item"
+      - "<dark_gray>or press confirm."
+  2:
+    material: NAME_TAG
+    name: "<green>Confirm"
+    action: confirm_name
