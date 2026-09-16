@@ -78,6 +78,7 @@ title: "<gold>Furnace <gray>(%player%)"
 slots:
   0: { material: AIR }  # deposit/output slots must be AIR templates
   2: { material: AIR }  # (filled at runtime, never from the template)
+  12: { ref: demo_crown }  # full NBT stack from items.yml (see below)
 deposit: [0, 1]         # player-placeable slots (type whitelist enforced)
 output: [2]             # take-out slots: registered action fires, else default hand-over
 data: { 0: 200, 1: 200, 2: 0, 3: 200 }   # container-data (furnace flame/arrow, ...)
@@ -89,6 +90,30 @@ trades:                                  # MERCHANT only
 Items support `material`, `amount` (int or single `%key%`), `name` / `lore` (MiniMessage
 with `%key%` placeholders, `%%` escapes), `flags`, `custom_model_data`. Slot `action:`
 binds a click to a registered handler.
+
+### Named items (`ref:`) — full NBT stacks
+
+Templates (`material:` + MiniMessage) are portable and stay the default. When you need a
+fully serialized stack — NBT included, exactly as built in-game — reference it by ID
+instead of describing it. Nothing mixes: a `ref:` slot takes only an optional `amount`
+override, no `material`/`name`/`lore`/`flags`, and placeholders do not apply inside refs.
+
+Named items live in `items.yml` (flat `id → Base64` map) and are served by an
+`ItemProvider`. The core ships `FileItemProvider` (`items.yml` in the plugin data
+folder; the demo's `/vitem export` writes the cursor stack under a new ID):
+
+```java
+menus.setItemProvider(FileItemProvider.fromDataFolder(this));
+```
+
+Mechanics: the compiled blob stores **only the ID**, so items reload without
+recompiling menus; unknown IDs fail fast at load; stacks are materialized once and
+cloned per open (64 KB cap per blob).
+
+⚠ Version binding: blobs use Bukkit's `serializeAsBytes` and decode **only on the
+server version that wrote them** — menu blobs stay portable across 1.21.x, item blobs
+deliberately don't. Regenerate `items.yml` after a version upgrade. The codec is public
+API: `ItemBlobs.encode(stack)` / `ItemBlobs.decode(base64)`.
 
 Supported window types and their vanilla registry IDs (1.21):
 
@@ -123,27 +148,28 @@ progress visuals, `MERCHANT` for offers, stonecutter/loom as clickable option gr
   the changed slot (`-1` = player-inventory side, e.g. shift-click). Use it for previews
   (merchant result, stonecutter options) and live state.
 
-## Binary format (`menu-format: 3`)
+## Binary format (`menu-format: 4`)
 
 `VMNU` magic · u8 version · sha256(source) · menuId · rows · window type · deposit/output/
-data/buttons/trades sections · CRC32 — all gzip-compressed. DTO-level (material keys,
-MiniMessage segments), never NMS bytes, so blobs stay portable across 1.21.x patch
-versions. `MenuCodec` round-trips losslessly; tampered blobs are rejected.
+data/buttons/trades sections · `ref` slots (ID only) · CRC32 — all gzip-compressed. DTO-level (material keys,
+MiniMessage segments), never NMS bytes, so menu blobs stay portable across 1.21.x patch
+versions (`ref` IDs resolve against the version-bound `items.yml` at load).
+`MenuCodec` round-trips losslessly; tampered blobs are rejected.
 
 ## Build, test, run
 
 ```bash
-./gradlew build          # core + demo, 59 unit tests
+./gradlew build          # core + demo, 71 unit tests
 ./gradlew :demo:shadowJar # fat jar → docker/plugins/
 docker compose up -d     # Paper 1.21.8, PacketEvents/Via* via docker/plugins
 ```
 
 E2E: `./gradlew :demo:plugwrightTest` — boots a real Paper 1.21.8, drives Mineflayer bots
-through 19 specs (open/title, no-dupe click, lore refresh, pagination, anvil rename,
-merchant offers, reload). Dev loop notes: test server uses game port **25566** and RCON
+through 22 specs (open/title, no-dupe click, lore refresh, pagination, anvil rename,
+merchant offers, item refs, reload). Dev loop notes: test server uses game port **25566** and RCON
 **25576** (the docker dev server owns 25565/25575); specs live in `demo/src/test/e2e/tests/`.
 
-In-game demo commands: `/vmenu [id]` · `/vpaged` · `/vname` · `/vreload`.
+In-game demo commands: `/vmenu [id]` · `/vpaged` · `/vname` · `/vitem` · `/vreload`.
 To join with any 1.21.x client, the docker server ships ViaVersion + ViaBackwards.
 
 ## Status
