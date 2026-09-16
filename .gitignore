@@ -15,6 +15,7 @@ docker/plugins/spark/
 docker/plugins/ViaVersion/
 docker/plugins/ViaBackwards/
 docker/plugins/PacketEvents/
+docker/plugins/virtual-inventories-demo/
 
 # Plugin jars (third-party downloads + build artifact).
 # Restore with:

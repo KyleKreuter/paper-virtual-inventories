@@ -1,12 +1,17 @@
 package de.kyle.virtualinventories.session;
 
-import de.kyle.virtualinventories.menu.VirtualMenu;
+import de.kyle.virtualinventories.menu.ClickHandler;
 import de.kyle.virtualinventories.net.MenuPacketSender;
+import de.kyle.virtualinventories.provider.CompiledMenu;
+import de.kyle.virtualinventories.provider.MenuHooks;
+import de.kyle.virtualinventories.provider.MenuView;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,17 +33,22 @@ public final class SessionManager {
         this.sender = sender;
     }
 
-    public MenuSession open(Player player, VirtualMenu menu) {
+    public MenuSession openSession(Player player, CompiledMenu menu, MenuView view,
+                                   Map<Integer, ClickHandler> handlers, MenuHooks hooks,
+                                   Component title, ItemStack[] content,
+                                   MenuSession.ContentRenderer renderer) {
         close(player);
         int containerId = ids.allocate();
-        MenuSession session = new MenuSession(plugin, this, sender, player, menu, containerId);
+        MenuSession session = new MenuSession(plugin, this, sender, player, menu, view,
+                handlers, hooks == null ? MenuHooks.empty() : hooks, renderer, containerId);
         sessions.put(player.getUniqueId(), session);
-        menu.onOpen(player, session);
-        ItemStack[] content = menu.iconSnapshot();
-        sender.sendOpen(player, containerId, menu.size(), menu.title());
+        sender.sendOpen(player, containerId, menu.size(), title);
         sender.sendFullContents(player, containerId, session.nextStateId(), content);
         sender.resetCursor(player);
         session.markOpen(content);
+        if (session.menu() != null && hooks != null && hooks.onOpen() != null) {
+            hooks.onOpen().accept(player, session);
+        }
         return session;
     }
 

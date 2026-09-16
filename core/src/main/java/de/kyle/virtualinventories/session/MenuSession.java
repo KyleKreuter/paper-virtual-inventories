@@ -1,15 +1,20 @@
 package de.kyle.virtualinventories.session;
 
-import de.kyle.virtualinventories.menu.MenuItem;
-import de.kyle.virtualinventories.menu.VirtualMenu;
+import de.kyle.virtualinventories.menu.ClickContext;
+import de.kyle.virtualinventories.menu.ClickHandler;
 import de.kyle.virtualinventories.net.MenuPacketSender;
+import de.kyle.virtualinventories.provider.CompiledMenu;
+import de.kyle.virtualinventories.provider.MenuHooks;
+import de.kyle.virtualinventories.provider.MenuView;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * Server-side state of one open virtual menu. Holds no real items, only the
@@ -19,25 +24,40 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class MenuSession {
 
+    /** Renders the full current content (static templates + resolved dynamics). */
+    @FunctionalInterface
+    public interface ContentRenderer extends Supplier<ItemStack[]> {
+    }
+
     private final Plugin plugin;
     private final SessionManager manager;
     private final MenuPacketSender sender;
     private final Player player;
     private final UUID playerId;
-    private final VirtualMenu menu;
+    private final CompiledMenu menu;
+    private final MenuView view;
+    private final Map<Integer, ClickHandler> handlers;
+    private final MenuHooks hooks;
+    private final ContentRenderer renderer;
     private final int containerId;
     private final AtomicInteger stateId = new AtomicInteger(1);
     private ItemStack[] lastContent;
     private boolean open;
 
     MenuSession(Plugin plugin, SessionManager manager, MenuPacketSender sender,
-                Player player, VirtualMenu menu, int containerId) {
+                Player player, CompiledMenu menu, MenuView view,
+                Map<Integer, ClickHandler> handlers, MenuHooks hooks,
+                ContentRenderer renderer, int containerId) {
         this.plugin = plugin;
         this.manager = manager;
         this.sender = sender;
         this.player = player;
         this.playerId = player.getUniqueId();
         this.menu = menu;
+        this.view = view;
+        this.handlers = handlers;
+        this.hooks = hooks;
+        this.renderer = renderer;
         this.containerId = containerId;
     }
 
@@ -45,8 +65,16 @@ public final class MenuSession {
         return player;
     }
 
-    public VirtualMenu menu() {
+    public CompiledMenu menu() {
         return menu;
+    }
+
+    public MenuView view() {
+        return view;
+    }
+
+    public String menuId() {
+        return menu.id();
     }
 
     public int containerId() {
@@ -66,6 +94,14 @@ public final class MenuSession {
         return stateId.getAndIncrement();
     }
 
+    /** Dispatches a menu-grid click to the slot's action handler. */
+    public void dispatchClick(ClickContext context) {
+        ClickHandler handler = context.bottom() ? null : handlers.get(context.slot());
+        if (handler != null) {
+            handler.handle(context);
+        }
+    }
+
     /** Re-renders the whole menu content. Safe to call from async threads. */
     public void refresh() {
         if (Bukkit.isPrimaryThread()) {
@@ -79,27 +115,25 @@ public final class MenuSession {
         if (!open) {
             return;
         }
-        ItemStack[] content = menu.iconSnapshot();
+        ItemStack[] content = renderer.get();
         lastContent = content;
         sender.sendFullContents(player, containerId, nextStateId(), content);
         sender.resetCursor(player);
     }
 
     /** Updates a single slot visually. Safe to call from async threads. */
-    public void setSlot(int slot, MenuItem item) {
+    public void setSlot(int slot, ItemStack icon) {
         if (Bukkit.isPrimaryThread()) {
-            setSlotNow(slot, item);
+            setSlotNow(slot, icon);
         } else {
-            Bukkit.getScheduler().runTask(plugin, () -> setSlotNow(slot, item));
+            Bukkit.getScheduler().runTask(plugin, () -> setSlotNow(slot, icon));
         }
     }
 
-    private void setSlotNow(int slot, MenuItem item) {
+    private void setSlotNow(int slot, ItemStack icon) {
         if (!open || slot < 0 || slot >= menu.size().slots()) {
             return;
         }
-        menu.setItem(slot, item);
-        ItemStack icon = item == null ? null : item.icon();
         if (lastContent != null) {
             lastContent[slot] = icon == null ? null : icon.clone();
         }
@@ -123,7 +157,9 @@ public final class MenuSession {
         open = false;
         manager.forget(playerId, this);
         try {
-            menu.onClose(player);
+            if (hooks.onClose() != null) {
+                hooks.onClose().accept(player, this);
+            }
         } finally {
             if (player.isOnline()) {
                 sender.sendClose(player, containerId);

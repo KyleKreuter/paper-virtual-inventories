@@ -102,7 +102,7 @@ public final class PacketMenuListener implements PacketListener {
         ClickContext context = new ClickContext(player, session, slot, rawSlot, type, button, snapshot, bottom);
 
         try {
-            session.menu().dispatchClick(context);
+            session.dispatchClick(context);
         } catch (Exception e) {
             plugin.getLogger().warning("Menu click handler failed: " + e.getMessage());
         }

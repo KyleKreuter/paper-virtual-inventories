@@ -10,3 +10,6 @@ commands:
   vpaged:
     description: Opens the paginated packet menu demo
     usage: /vpaged
+  vreload:
+    description: Recompiles menu YAML files and refreshes blobs
+    usage: /vreload

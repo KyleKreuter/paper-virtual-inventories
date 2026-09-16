@@ -1,0 +1,25 @@
+id: paged1
+rows: 4
+title: "<gold>Entries <gray>1/3 <dark_gray>(%player%)"
+slots:
+  0: {material: PAPER, name: "<yellow>Entry #1", lore: ["<gray>Pick me"], action: pick}
+  1: {material: PAPER, name: "<yellow>Entry #2", lore: ["<gray>Pick me"], action: pick}
+  2: {material: PAPER, name: "<yellow>Entry #3", lore: ["<gray>Pick me"], action: pick}
+  3: {material: PAPER, name: "<yellow>Entry #4", lore: ["<gray>Pick me"], action: pick}
+  4: {material: PAPER, name: "<yellow>Entry #5", lore: ["<gray>Pick me"], action: pick}
+  5: {material: PAPER, name: "<yellow>Entry #6", lore: ["<gray>Pick me"], action: pick}
+  6: {material: PAPER, name: "<yellow>Entry #7", lore: ["<gray>Pick me"], action: pick}
+  7: {material: PAPER, name: "<yellow>Entry #8", lore: ["<gray>Pick me"], action: pick}
+  8: {material: PAPER, name: "<yellow>Entry #9", lore: ["<gray>Pick me"], action: pick}
+  9: {material: PAPER, name: "<yellow>Entry #10", lore: ["<gray>Pick me"], action: pick}
+  10: {material: PAPER, name: "<yellow>Entry #11", lore: ["<gray>Pick me"], action: pick}
+  11: {material: PAPER, name: "<yellow>Entry #12", lore: ["<gray>Pick me"], action: pick}
+  27: {material: ARROW, name: "<gray>Previous", action: open_paged3}
+  28: {material: GRAY_STAINED_GLASS_PANE, name: " "}
+  29: {material: GRAY_STAINED_GLASS_PANE, name: " "}
+  30: {material: GRAY_STAINED_GLASS_PANE, name: " "}
+  31: {material: PAPER, name: "<yellow>Page 1 / 3"}
+  32: {material: GRAY_STAINED_GLASS_PANE, name: " "}
+  33: {material: BARRIER, name: "<red>Close", action: close}
+  34: {material: GRAY_STAINED_GLASS_PANE, name: " "}
+  35: {material: ARROW, name: "<gray>Next", action: open_paged2}

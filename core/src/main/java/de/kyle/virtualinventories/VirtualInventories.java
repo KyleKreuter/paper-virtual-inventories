@@ -3,15 +3,18 @@ package de.kyle.virtualinventories;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerCommon;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
-import de.kyle.virtualinventories.menu.VirtualMenu;
 import de.kyle.virtualinventories.net.MenuBukkitListener;
 import de.kyle.virtualinventories.net.MenuPacketSender;
 import de.kyle.virtualinventories.net.PacketMenuListener;
+import de.kyle.virtualinventories.provider.InMemoryMenuProvider;
+import de.kyle.virtualinventories.provider.MenuProvider;
 import de.kyle.virtualinventories.session.MenuSession;
 import de.kyle.virtualinventories.session.SessionManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+
+import java.util.Map;
 
 /**
  * Entry point of the library.
@@ -20,8 +23,11 @@ import org.bukkit.plugin.Plugin;
  * <pre>{@code
  * public void onEnable() {
  *     VirtualInventories.init(this);
+ *     MenuProvider menus = VirtualInventories.api().menus();
+ *     menus.loadDirectory(); // menus/*.yml -> compiled/*.vmenu.gz
+ *     menus.action("close", ClickHandler.close());
  *     getCommand("shop").setExecutor((s, c, l, a) -> {
- *         VirtualInventories.api().open((Player) s, new ShopMenu());
+ *         VirtualInventories.api().open((Player) s, "shop");
  *         return true;
  *     });
  * }
@@ -41,6 +47,7 @@ public final class VirtualInventories {
     private final Plugin plugin;
     private final MenuPacketSender sender;
     private final SessionManager sessions;
+    private final MenuProvider menus;
     private final PacketMenuListener packetListener;
     private final MenuBukkitListener bukkitListener;
     private PacketListenerCommon registration;
@@ -50,6 +57,7 @@ public final class VirtualInventories {
         this.plugin = plugin;
         this.sender = new MenuPacketSender();
         this.sessions = new SessionManager(plugin, sender);
+        this.menus = new InMemoryMenuProvider(plugin, sessions);
         this.packetListener = new PacketMenuListener(plugin, sessions);
         this.bukkitListener = new MenuBukkitListener(sessions);
     }
@@ -83,10 +91,21 @@ public final class VirtualInventories {
         return instance;
     }
 
-    /** Opens a virtual menu for the player. Must be called on the main thread. */
-    public MenuSession open(Player player, VirtualMenu menu) {
+    /** The menu provider: register menus, placeholders and click actions here. */
+    public MenuProvider menus() {
+        return menus;
+    }
+
+    /** Opens a compiled menu for the player. Must be called on the main thread. */
+    public MenuSession open(Player player, String menuId) {
         ensureActive();
-        return sessions.open(player, menu);
+        return menus.open(player, menuId);
+    }
+
+    /** Opens a compiled menu with per-open extra placeholder values. */
+    public MenuSession open(Player player, String menuId, Map<String, String> extra) {
+        ensureActive();
+        return menus.open(player, menuId, extra);
     }
 
     /** Closes the player's virtual menu if one is open. Safe no-op otherwise. */
@@ -115,7 +134,7 @@ public final class VirtualInventories {
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to unregister packet listener: " + e.getMessage());
         }
-        sessions.closeAll();
+        menus.shutdown();
         if (instance == this) {
             instance = null;
         }

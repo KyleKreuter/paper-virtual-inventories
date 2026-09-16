@@ -1,5 +1,6 @@
 package de.kyle.virtualinventories.menu;
 
+import de.kyle.virtualinventories.provider.CompiledMenu;
 import de.kyle.virtualinventories.session.MenuSession;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -27,7 +28,7 @@ public record ClickContext(
         ItemStack clickedItem,
         boolean bottom
 ) {
-    public VirtualMenu menu() {
+    public CompiledMenu menu() {
         return session.menu();
     }
 }

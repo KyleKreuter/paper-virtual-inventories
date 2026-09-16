@@ -2,34 +2,64 @@ package de.kyle.virtualinventories.demo;
 
 import de.kyle.virtualinventories.VirtualInventories;
 import de.kyle.virtualinventories.menu.ClickHandler;
-import de.kyle.virtualinventories.menu.MenuItem;
-import de.kyle.virtualinventories.menu.MenuSize;
-import de.kyle.virtualinventories.menu.PaginatedMenu;
-import de.kyle.virtualinventories.menu.VirtualMenu;
-import net.kyori.adventure.text.Component;
-import org.bukkit.Material;
+import de.kyle.virtualinventories.provider.MenuHooks;
+import de.kyle.virtualinventories.provider.MenuProvider;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Statistic;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Demo plugin: proves that a full chest GUI works without any real inventory.
- * Open with /vmenu (simple) or /vpaged (pagination + async refresh example).
+ * Demo plugin for the compiled-menu v1 API: menus come from YAML files,
+ * placeholders and click actions are registered in code.
+ * Open with /vmenu (dynamic values), /vpaged (multi-page YAML menus) or
+ * /vreload (recompile YAML + refresh *.vmenu.gz blobs).
  */
 public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
+
+    private MenuProvider menus;
 
     @Override
     public void onEnable() {
         VirtualInventories.init(this);
+        menus = VirtualInventories.api().menus();
+
+        menus.placeholders().register("balance", player -> String.valueOf(player.getLevel() * 137L));
+        menus.placeholders().register("kills",
+                player -> String.valueOf(player.getStatistic(Statistic.MOB_KILLS)));
+        menus.placeholders().register("price", player -> "64");
+
+        menus.action("close", ClickHandler.close());
+        menus.action("demo_click", ctx ->
+                ctx.player().sendMessage("Clicked slot " + ctx.slot() + " with " + ctx.clickType()));
+        menus.action("demo_bump", ctx -> {
+            Player viewer = ctx.player();
+            viewer.setLevel(viewer.getLevel() + 1);
+            menus.refreshDynamic(viewer);
+            viewer.sendMessage("Balance bumped, menu refreshed.");
+        });
+        menus.action("pick", ctx -> ctx.player().sendMessage("Picked " + itemName(ctx.clickedItem())));
+        menus.action("open_paged1", ctx -> switchPage(ctx.player(), "paged1"));
+        menus.action("open_paged2", ctx -> switchPage(ctx.player(), "paged2"));
+        menus.action("open_paged3", ctx -> switchPage(ctx.player(), "paged3"));
+
+        menus.hooks("demo", new MenuHooks(
+                (player, session) -> player.sendMessage("Welcome to the compiled demo menu."),
+                null));
+
+        saveResource("menus/demo.yml", false);
+        saveResource("menus/paged1.yml", false);
+        saveResource("menus/paged2.yml", false);
+        saveResource("menus/paged3.yml", false);
+        menus.loadDirectory();
+
         getCommand("vmenu").setExecutor(this);
         getCommand("vpaged").setExecutor(this);
+        getCommand("vreload").setExecutor(this);
     }
 
     @Override
@@ -47,46 +77,31 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
             sender.sendMessage("Players only.");
             return true;
         }
-        if (command.getName().equalsIgnoreCase("vpaged")) {
-            VirtualInventories.api().open(player, new DemoPagedMenu());
-        } else {
-            VirtualInventories.api().open(player, new DemoMenu());
+        try {
+            switch (command.getName().toLowerCase()) {
+                case "vpaged" -> menus.open(player, "paged1");
+                case "vreload" -> {
+                    menus.reload();
+                    player.sendMessage("Reloaded " + menus.menuIds().size()
+                            + " menus: " + String.join(", ", menus.menuIds()));
+                }
+                default -> menus.open(player, args.length > 0 ? args[0] : "demo");
+            }
+        } catch (RuntimeException e) {
+            player.sendMessage("Menu error: " + e.getMessage());
         }
         return true;
     }
 
-    private static ItemStack named(Material material, String name) {
-        ItemStack stack = new ItemStack(material);
-        ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.displayName(Component.text(name));
-            stack.setItemMeta(meta);
-        }
-        return stack;
+    private void switchPage(Player player, String menuId) {
+        VirtualInventories.api().close(player);
+        menus.open(player, menuId);
     }
 
-    /** Simple 27-slot menu: border, info button, close button. */
-    private static final class DemoMenu extends VirtualMenu {
-        DemoMenu() {
-            super(Component.text("Packet Chest (dupe-proof)"), MenuSize.ROW_3);
-            fillBorder(MenuItem.just(named(Material.GRAY_STAINED_GLASS_PANE, " ")));
-            setItem(13, MenuItem.of(named(Material.DIAMOND, "Click me"),
-                    ctx -> ctx.player().sendMessage("Clicked slot 13 with " + ctx.clickType())));
-            setItem(26, MenuItem.of(named(Material.BARRIER, "Close"), ClickHandler.close()));
+    private static String itemName(ItemStack clicked) {
+        if (clicked != null && clicked.hasItemMeta() && clicked.getItemMeta().hasDisplayName()) {
+            return PlainTextComponentSerializer.plainText().serialize(clicked.getItemMeta().displayName());
         }
-    }
-
-    /** Paginated menu over 40 visual items. */
-    private static final class DemoPagedMenu extends PaginatedMenu {
-        DemoPagedMenu() {
-            super(Component.text("Paged packets"), MenuSize.ROW_4);
-            List<MenuItem> content = new ArrayList<>();
-            for (int i = 1; i <= 40; i++) {
-                int number = i;
-                content.add(MenuItem.of(named(Material.PAPER, "Entry #" + number),
-                        ctx -> ctx.player().sendMessage("Picked entry " + number)));
-            }
-            setContent(content);
-        }
+        return "?";
     }
 }
