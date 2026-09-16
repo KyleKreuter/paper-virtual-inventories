@@ -3,7 +3,12 @@ package de.kyle.virtualinventories.menu;
 /**
  * Window types supported by virtual menus. The vanilla type id follows the
  * {@code MenuType} registry order on 1.21 (GENERIC_9x1 = 0 .. GENERIC_9x6 = 5,
- * GENERIC_3x3 = 6, CRAFTER_3x3 = 7, ANVIL = 8).
+ * GENERIC_3x3 = 6, CRAFTER_3x3 = 7, ANVIL = 8, HOPPER = 16, SHULKER_BOX = 20).
+ *
+ * <p>Only plain container windows are supported: every slot is either static
+ * or an action slot. Types that need extra server data (furnace progress,
+ * enchantment options, merchant offers, stonecutter recipes, beacon levels)
+ * are intentionally not included.
  */
 public enum WindowType {
     CHEST_9X1(0, 9),
@@ -12,7 +17,11 @@ public enum WindowType {
     CHEST_9X4(3, 36),
     CHEST_9X5(4, 45),
     CHEST_9X6(5, 54),
-    ANVIL(8, 3);
+    ANVIL(8, 3),
+    GENERIC_3X3(6, 9),
+    CRAFTER_3X3(7, 9),
+    HOPPER(16, 5),
+    SHULKER_BOX(20, 27);
 
     private final int typeId;
     private final int slots;

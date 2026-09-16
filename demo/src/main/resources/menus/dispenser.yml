@@ -1,0 +1,15 @@
+id: dispenser
+type: GENERIC_3X3
+title: "<gray>Dispenser <dark_gray>(%player%)"
+slots:
+  0:
+    material: DISPENSER
+    name: "<yellow>Dispenser Demo"
+  4:
+    material: ARROW
+    name: "<white>Click me"
+    action: demo_click
+  8:
+    material: BARRIER
+    name: "<red>Close"
+    action: close

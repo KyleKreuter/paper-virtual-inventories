@@ -62,6 +62,10 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         saveResource("menus/paged2.yml", false);
         saveResource("menus/paged3.yml", false);
         saveResource("menus/name.yml", false);
+        saveResource("menus/hopper.yml", false);
+        saveResource("menus/shulker.yml", false);
+        saveResource("menus/dispenser.yml", false);
+        saveResource("menus/crafter.yml", false);
         menus.loadDirectory();
 
         getCommand("vmenu").setExecutor(this);

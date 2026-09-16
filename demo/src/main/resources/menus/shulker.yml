@@ -1,0 +1,15 @@
+id: shulker
+type: SHULKER_BOX
+title: "<dark_purple>Shulker <gray>(%player%)"
+slots:
+  0:
+    material: SHULKER_SHELL
+    name: "<light_purple>Shulker Demo"
+  13:
+    material: DIAMOND
+    name: "<aqua>Click me"
+    action: demo_click
+  26:
+    material: BARRIER
+    name: "<red>Close"
+    action: close

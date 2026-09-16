@@ -1,0 +1,15 @@
+id: hopper
+type: HOPPER
+title: "<gray>Hopper <dark_gray>(%player%)"
+slots:
+  0:
+    material: HOPPER
+    name: "<yellow>Hopper Demo"
+  2:
+    material: GOLD_INGOT
+    name: "<gold>Click me"
+    action: demo_click
+  4:
+    material: BARRIER
+    name: "<red>Close"
+    action: close

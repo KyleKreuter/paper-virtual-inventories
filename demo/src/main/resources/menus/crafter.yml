@@ -1,0 +1,15 @@
+id: crafter
+type: CRAFTER_3X3
+title: "<gray>Crafter <dark_gray>(%player%)"
+slots:
+  0:
+    material: CRAFTING_TABLE
+    name: "<yellow>Crafter Demo"
+  4:
+    material: REDSTONE
+    name: "<red>Click me"
+    action: demo_click
+  8:
+    material: BARRIER
+    name: "<red>Close"
+    action: close

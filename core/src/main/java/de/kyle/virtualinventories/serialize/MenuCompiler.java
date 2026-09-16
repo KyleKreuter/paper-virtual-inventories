@@ -24,21 +24,24 @@ public final class MenuCompiler {
         requireId(menuId);
         WindowType windowType;
         String type = definition.type();
-        if ("ANVIL".equals(type)) {
-            windowType = WindowType.ANVIL;
-        } else if ("CHEST".equals(type)) {
+        if ("CHEST".equals(type)) {
             if (definition.rows() < 1 || definition.rows() > 6) {
                 throw MenuCompileException.at(menuId, "rows",
                         "must be 1-6, got " + definition.rows());
             }
             windowType = WindowType.chest(definition.rows());
         } else {
-            throw MenuCompileException.at(menuId, "type",
-                    "unknown window type '" + type + "' (expected CHEST or ANVIL)");
-        }
-        if (windowType.isAnvil() && definition.rows() != 1) {
-            throw MenuCompileException.at(menuId, "rows",
-                    "anvil menus are single-row (slots 0-2), omit 'rows'");
+            try {
+                windowType = WindowType.valueOf(type);
+            } catch (IllegalArgumentException e) {
+                throw MenuCompileException.at(menuId, "type",
+                        "unknown window type '" + type + "' (expected CHEST, ANVIL, "
+                                + "GENERIC_3X3, CRAFTER_3X3, HOPPER or SHULKER_BOX)");
+            }
+            if (definition.rows() != 1) {
+                throw MenuCompileException.at(menuId, "rows",
+                        windowType + " has a fixed size, omit 'rows'");
+            }
         }
         List<Integer> deposit = List.copyOf(definition.depositSlots());
         if (!deposit.isEmpty() && !windowType.isAnvil()) {
@@ -53,7 +56,7 @@ public final class MenuCompiler {
             }
         }
         String title = definition.title() == null ? "" : definition.title();
-        int maxSlot = windowType.isAnvil() ? windowType.slots() : definition.rows() * 9;
+        int maxSlot = "CHEST".equals(type) ? definition.rows() * 9 : windowType.slots();
 
         List<CompiledForm.CompiledSlot> slots = new ArrayList<>();
         Set<String> keys = new TreeSet<>();

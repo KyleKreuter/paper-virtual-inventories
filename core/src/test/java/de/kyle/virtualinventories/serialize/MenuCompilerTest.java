@@ -136,4 +136,41 @@ class MenuCompilerTest {
         MenuDefinition def = new MenuDefinition("u", 1, "T", Map.of(), "FURNACE", List.of());
         assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
     }
+
+    @Test
+    void validHopperCompiles() {
+        MenuDefinition def = new MenuDefinition("h", 1, "Hi %player%",
+                Map.of(0, slot("HOPPER"), 4, slot("STONE")), "HOPPER", List.of());
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("HOPPER", form.windowType());
+        assertFalse(form.isAnvil());
+    }
+
+    @Test
+    void fixedSizeTypeRejectsRows() {
+        MenuDefinition def = new MenuDefinition("h", 2, "T", Map.of(), "HOPPER", List.of());
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
+    }
+
+    @Test
+    void hopperSlotOutOfBoundsFails() {
+        MenuDefinition def = new MenuDefinition("h", 1, "T",
+                Map.of(5, slot("STONE")), "HOPPER", List.of());
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
+    }
+
+    @Test
+    void shulkerMaxSlotCompiles() {
+        MenuDefinition def = new MenuDefinition("s", 1, "T",
+                Map.of(26, slot("STONE")), "SHULKER_BOX", List.of());
+        CompiledForm form = MenuCompiler.compile(def, "0".repeat(64));
+        assertEquals("SHULKER_BOX", form.windowType());
+    }
+
+    @Test
+    void fixedSizeTypeRejectsDeposit() {
+        MenuDefinition def = new MenuDefinition("h", 1, "T",
+                Map.of(0, airSlot()), "HOPPER", List.of(0));
+        assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
+    }
 }

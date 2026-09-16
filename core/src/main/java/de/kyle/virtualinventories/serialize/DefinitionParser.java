@@ -67,8 +67,8 @@ public final class DefinitionParser {
         int rows;
         if (rowsRaw instanceof Number number) {
             rows = number.intValue();
-        } else if (rowsRaw == null && "ANVIL".equals(type.strip().toUpperCase(java.util.Locale.ROOT))) {
-            rows = 1; // ignored for anvils, the window is fixed
+        } else if (rowsRaw == null && !"CHEST".equals(type.strip().toUpperCase(java.util.Locale.ROOT))) {
+            rows = 1; // fixed-size windows (anvil, hopper, ...) omit 'rows'
         } else {
             throw MenuCompileException.at(menuId, "rows", "missing or not a number (expected 1-6)");
         }
