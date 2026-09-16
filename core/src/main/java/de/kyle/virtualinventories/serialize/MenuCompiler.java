@@ -161,6 +161,19 @@ public final class MenuCompiler {
             boolean isDeposit, boolean isOutput) {
         String where = "slots." + slot;
         MenuDefinition.ItemTemplate item = slotDef.item();
+        if (item.amount() < 1 || item.amount() > 99) {
+            throw MenuCompileException.at(menuId, where, "'amount' must be 1-99, got " + item.amount());
+        }
+        String action = slotDef.action() == null || slotDef.action().isBlank() ? null : slotDef.action();
+        if (action != null && !action.matches("[A-Za-z0-9_.-]+")) {
+            throw MenuCompileException.at(menuId, where, "invalid action id '" + slotDef.action() + "'");
+        }
+        if (item.itemRef() != null) {
+            return compileReference(menuId, slot, item, action, isDeposit, isOutput);
+        }
+        if (item.material() == null || item.material().isBlank()) {
+            throw MenuCompileException.at(menuId, where, "missing required 'material'");
+        }
         if (isDeposit || isOutput) {
             if (!"AIR".equalsIgnoreCase(item.material())) {
                 throw MenuCompileException.at(menuId, where,
@@ -174,15 +187,8 @@ public final class MenuCompiler {
         if (isDeposit && slotDef.action() != null && !slotDef.action().isBlank()) {
             throw MenuCompileException.at(menuId, where, "deposit slots must not define 'action'");
         }
-        if (item.amount() < 1 || item.amount() > 99) {
-            throw MenuCompileException.at(menuId, where, "'amount' must be 1-99, got " + item.amount());
-        }
         if (item.amountPlaceholder() != null && !Segments.isKey(item.amountPlaceholder())) {
             throw MenuCompileException.at(menuId, where, "invalid amount placeholder '" + item.amountPlaceholder() + "'");
-        }
-        if (slotDef.action() != null && !slotDef.action().isBlank()
-                && !slotDef.action().matches("[A-Za-z0-9_.-]+")) {
-            throw MenuCompileException.at(menuId, where, "invalid action id '" + slotDef.action() + "'");
         }
         if (item.amountPlaceholder() != null) {
             keys.add(item.amountPlaceholder());
@@ -202,7 +208,39 @@ public final class MenuCompiler {
         }
         return new CompiledForm.CompiledSlot(slot, item.material(), item.amount(), item.amountPlaceholder(),
                 name, List.copyOf(lore), List.copyOf(seenFlags.keySet()), item.customModelData(),
-                slotDef.action() == null || slotDef.action().isBlank() ? null : slotDef.action());
+                action, null);
+    }
+
+    /**
+     * Compiles a {@code ref:} slot: the id is validated and stored, the stack
+     * itself is resolved from the {@code ItemProvider} at menu load. Only
+     * {@code amount} may override the stored stack size; every other template
+     * field is rejected so the reference stays the single source of truth.
+     */
+    private static CompiledForm.CompiledSlot compileReference(
+            String menuId, int slot, MenuDefinition.ItemTemplate item, String action,
+            boolean isDeposit, boolean isOutput) {
+        String where = "slots." + slot;
+        String ref = item.itemRef().strip();
+        if (!ref.matches("[A-Za-z0-9_.-]+")) {
+            throw MenuCompileException.at(menuId, where, "invalid item ref id '" + item.itemRef() + "'");
+        }
+        if (isDeposit || isOutput) {
+            throw MenuCompileException.at(menuId, where,
+                    "'ref' is not allowed on " + (isDeposit ? "deposit" : "output")
+                            + " slots (player items go here)");
+        }
+        if (item.material() != null && !item.material().isBlank()) {
+            throw MenuCompileException.at(menuId, where, "'ref' cannot be combined with 'material'");
+        }
+        if (item.amountPlaceholder() != null || item.name() != null || !item.lore().isEmpty()
+                || !item.flags().isEmpty() || item.customModelData() != null) {
+            throw MenuCompileException.at(menuId, where,
+                    "'ref' cannot be combined with name/lore/flags/custom_model_data/"
+                            + "amount-placeholders (only 'amount' may override the stored size)");
+        }
+        return new CompiledForm.CompiledSlot(slot, null, item.amount(), null,
+                List.of(), List.of(), List.of(), null, action, ref);
     }
 
     private static void requireId(String menuId) {

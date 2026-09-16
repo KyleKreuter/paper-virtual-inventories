@@ -18,6 +18,8 @@ slots:
     lore:
       - "<gray>Kills: <red>%kills%"
       - "<gray>Balance: <green>%balance%"
+  12:
+    ref: demo_crown
   13:
     material: DIAMOND
     name: "<aqua>Click me"

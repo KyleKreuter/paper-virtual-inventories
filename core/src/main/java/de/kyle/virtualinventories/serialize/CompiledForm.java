@@ -66,7 +66,8 @@ public record CompiledForm(
             List<List<Segment>> lore,
             List<String> flags,
             Integer customModelData,
-            String action) {
+            String action,
+            String itemRef) {
 
         public CompiledSlot {
             name = List.copyOf(name);
@@ -75,9 +76,15 @@ public record CompiledForm(
         }
 
         public boolean isDynamic() {
-            return amountPlaceholder != null
+            return itemRef == null
+                    && (amountPlaceholder != null
                     || Segments.isDynamic(name)
-                    || lore.stream().anyMatch(Segments::isDynamic);
+                    || lore.stream().anyMatch(Segments::isDynamic));
+        }
+
+        /** True for fully serialized item references (resolved at load, never per open). */
+        public boolean isReference() {
+            return itemRef != null;
         }
     }
 

@@ -16,3 +16,6 @@ commands:
   vreload:
     description: Recompiles menu YAML files and refreshes blobs
     usage: /vreload
+  vitem:
+    description: Export or hand out named items for ref slots
+    usage: /vitem <export|give> <id>

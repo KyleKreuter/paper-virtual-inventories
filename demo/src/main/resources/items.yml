@@ -1,0 +1,5 @@
+# Named items for `ref:` slots: id -> Base64 blob (fully serialized
+# ItemStack, NBT included). Managed by /vitem export; hand-editing works too.
+#
+# Blobs are server-version-bound: re-export them after updating the server
+# jar, otherwise decoding fails loudly instead of yielding wrong items.

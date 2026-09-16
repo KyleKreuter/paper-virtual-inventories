@@ -49,6 +49,16 @@ public interface MenuProvider {
 
     PlaceholderRegistry placeholders();
 
+    /**
+     * Sets the provider for {@code ref:} item references. Defaults to an
+     * empty provider that fails fast on every reference — call this before
+     * loading any menu that uses {@code ref:}.
+     */
+    void setItemProvider(ItemProvider items);
+
+    /** The active {@link ItemProvider}, never null. */
+    ItemProvider itemProvider();
+
     /** Binds a click-action id to a handler. */
     void action(String actionId, ClickHandler handler);
 

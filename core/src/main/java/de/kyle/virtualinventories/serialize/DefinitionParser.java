@@ -180,9 +180,10 @@ public final class DefinitionParser {
 
     private static MenuDefinition.SlotDefinition parseSlot(String menuId, int slot, ConfigurationSection sec) {
         String where = "slots." + slot;
-        String material = sec.isString("material") ? sec.getString("material") : null;
-        if (material == null || material.isBlank()) {
-            throw MenuCompileException.at(menuId, where, "missing required 'material'");
+        String ref = sec.isString("ref") ? sec.getString("ref").strip() : null;
+        String material = sec.isString("material") ? sec.getString("material").strip() : null;
+        if ((material == null || material.isBlank()) && (ref == null || ref.isBlank())) {
+            throw MenuCompileException.at(menuId, where, "missing required 'material' (or 'ref')");
         }
 
         int amount = 1;
@@ -210,7 +211,8 @@ public final class DefinitionParser {
         String action = sec.isString("action") ? sec.getString("action") : null;
 
         MenuDefinition.ItemTemplate template = new MenuDefinition.ItemTemplate(
-                material.strip(), amount, amountPlaceholder, name, lore, flags, customModelData);
+                material, amount, amountPlaceholder, name, lore, flags, customModelData,
+                ref == null || ref.isBlank() ? null : ref);
         return new MenuDefinition.SlotDefinition(template, action);
     }
 }

@@ -17,15 +17,37 @@ import java.util.Map;
 /**
  * Materializes items from compiled templates. Static slots are built once at
  * menu load, dynamic slots are rebuilt per open from the resolved scope.
+ *
+ * <p>Public so plugins can build template items in code (menu seeds,
+ * code-defined menus, tests on a running server).</p>
  */
-final class ItemFactory {
+public final class ItemFactory {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private ItemFactory() {
     }
 
-    static ItemStack build(String menuId, int slot, String materialKey, int amount,
+    /**
+     * Builds one item from MiniMessage strings (may contain
+     * {@code %placeholder%} references resolved from {@code scope}).
+     */
+    public static ItemStack build(String menuId, int slot, String materialKey, int amount,
+                                  String name, List<String> lore, List<String> flags,
+                                  Integer customModelData, Map<String, String> scope) {
+        List<de.kyle.virtualinventories.serialize.Segment> parsedName =
+                name == null ? List.of() : Segments.parse(name);
+        List<List<de.kyle.virtualinventories.serialize.Segment>> parsedLore = new ArrayList<>();
+        if (lore != null) {
+            for (String line : lore) {
+                parsedLore.add(Segments.parse(line));
+            }
+        }
+        return build(menuId, slot, materialKey, amount, parsedName, parsedLore,
+                flags == null ? List.of() : flags, customModelData, scope);
+    }
+
+    public static ItemStack build(String menuId, int slot, String materialKey, int amount,
                            List<de.kyle.virtualinventories.serialize.Segment> name,
                            List<List<de.kyle.virtualinventories.serialize.Segment>> lore,
                            List<String> flags, Integer customModelData, Map<String, String> scope) {

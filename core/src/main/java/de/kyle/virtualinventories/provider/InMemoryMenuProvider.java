@@ -46,6 +46,7 @@ public final class InMemoryMenuProvider implements MenuProvider {
     private final Map<String, MenuDefinition> codeSources = new ConcurrentHashMap<>();
     private final Map<String, byte[]> blobs = new ConcurrentHashMap<>();
     private final Map<String, CompiledMenu> loaded = new ConcurrentHashMap<>();
+    private volatile ItemProvider itemProvider = ItemProvider.empty();
 
     public InMemoryMenuProvider(Plugin plugin, SessionManager sessions) {
         this.plugin = plugin;
@@ -77,7 +78,7 @@ public final class InMemoryMenuProvider implements MenuProvider {
         if (!form.menuId().equals(menuId)) {
             throw new MenuCompileException("[" + menuId + "] blob belongs to menu '" + form.menuId() + "'");
         }
-        CompiledMenu menu = CompiledMenu.materialize(form);
+        CompiledMenu menu = CompiledMenu.materialize(form, itemProvider);
         blobs.put(menuId, Arrays.copyOf(blob, blob.length));
         loaded.put(menuId, menu);
         plugin.getLogger().info("Loaded compiled menu '" + menuId + "' ("
@@ -174,6 +175,16 @@ public final class InMemoryMenuProvider implements MenuProvider {
     @Override
     public PlaceholderRegistry placeholders() {
         return placeholders;
+    }
+
+    @Override
+    public void setItemProvider(ItemProvider items) {
+        this.itemProvider = items == null ? ItemProvider.empty() : items;
+    }
+
+    @Override
+    public ItemProvider itemProvider() {
+        return itemProvider;
     }
 
     @Override

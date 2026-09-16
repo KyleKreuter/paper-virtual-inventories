@@ -63,7 +63,10 @@ public record MenuDefinition(String id, int rows, String title, Map<Integer, Slo
 
     /**
      * Visual blueprint of one item. Texts are MiniMessage strings that may
-     * contain {@code %placeholder%} references.
+     * contain {@code %placeholder%} references — unless {@code itemRef} is
+     * set: a reference replaces the whole template (fully serialized stack
+     * from the {@code ItemProvider}, NBT included). Only {@code amount} may
+     * additionally override the stored stack size.
      */
     public record ItemTemplate(
             String material,
@@ -72,15 +75,22 @@ public record MenuDefinition(String id, int rows, String title, Map<Integer, Slo
             String name,
             List<String> lore,
             List<String> flags,
-            Integer customModelData) {
+            Integer customModelData,
+            String itemRef) {
 
         public ItemTemplate {
-            lore = List.copyOf(lore);
-            flags = List.copyOf(flags);
+            lore = lore == null ? List.of() : List.copyOf(lore);
+            flags = flags == null ? List.of() : List.copyOf(flags);
         }
 
         public static ItemTemplate simple(String material, String name) {
-            return new ItemTemplate(material, 1, null, name, List.of(), List.of(), null);
+            return new ItemTemplate(material, 1, null, name, List.of(), List.of(), null, null);
+        }
+
+        /** Backwards-compatible constructor for template items without reference. */
+        public ItemTemplate(String material, int amount, String amountPlaceholder, String name,
+                            List<String> lore, List<String> flags, Integer customModelData) {
+            this(material, amount, amountPlaceholder, name, lore, flags, customModelData, null);
         }
     }
 }

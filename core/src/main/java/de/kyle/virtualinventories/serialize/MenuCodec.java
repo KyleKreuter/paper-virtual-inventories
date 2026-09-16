@@ -29,15 +29,20 @@ import java.util.zip.GZIPOutputStream;
  *     | title segments | slotCount u16 | slots... | crc32 )
  * trade = buyA utf | buyACount u8 | buyB nullableUtf | buyBCount u8
  *       | result utf | resultCount u8 | maxUses u16
+ * slot = slot u8 | isRef bool
+ *      | ref: refId utf | amount u8
+ *      | template: material utf | amount u8 | amountPlaceholder nullableUtf
+ *        | name segments | loreCount u16 | lore... | flagCount u8 | flags...
+ *        | hasCmd bool | [cmd i32] | action nullableUtf
  * </pre>
  *
- * <p>Version 1 and 2 blobs are rejected with a clear recompile hint.</p>
+ * <p>Older blobs are rejected with a clear recompile hint.</p>
  *
  * <p>Pure logic, no Bukkit dependency (unit-testable).</p>
  */
 public final class MenuCodec {
 
-    public static final int FORMAT_VERSION = 3;
+    public static final int FORMAT_VERSION = 4;
     private static final byte[] MAGIC = {'V', 'M', 'N', 'U'};
 
     private MenuCodec() {
@@ -107,7 +112,7 @@ public final class MenuCodec {
                 throw new MenuCompileException("Not a compiled menu blob (bad magic)");
             }
             int version = in.readUnsignedByte();
-            if (version == 1 || version == 2) {
+            if (version < FORMAT_VERSION) {
                 throw new MenuCompileException("Compiled menu was built with format v" + version
                         + " — please recompile: delete compiled/*.vmenu.gz "
                         + "or run /vreload");
@@ -202,6 +207,13 @@ public final class MenuCodec {
 
     private static void writeSlot(DataOutputStream out, CompiledForm.CompiledSlot slot) throws IOException {
         out.writeByte(slot.slot());
+        out.writeBoolean(slot.itemRef() != null);
+        if (slot.itemRef() != null) {
+            out.writeUTF(slot.itemRef());
+            out.writeByte(slot.amount());
+            writeNullableUtf(out, slot.action());
+            return;
+        }
         out.writeUTF(slot.material());
         out.writeByte(slot.amount());
         writeNullableUtf(out, slot.amountPlaceholder());
@@ -223,6 +235,13 @@ public final class MenuCodec {
 
     private static CompiledForm.CompiledSlot readSlot(DataInputStream in) throws IOException {
         int slot = in.readUnsignedByte();
+        if (in.readBoolean()) {
+            String itemRef = in.readUTF();
+            int amount = in.readUnsignedByte();
+            String action = readNullableUtf(in);
+            return new CompiledForm.CompiledSlot(slot, null, amount, null,
+                    List.of(), List.of(), List.of(), null, action, itemRef);
+        }
         String material = in.readUTF();
         int amount = in.readUnsignedByte();
         String amountPlaceholder = readNullableUtf(in);
@@ -240,7 +259,7 @@ public final class MenuCodec {
         Integer cmd = in.readBoolean() ? in.readInt() : null;
         String action = readNullableUtf(in);
         return new CompiledForm.CompiledSlot(slot, material, amount, amountPlaceholder,
-                name, lore, flags, cmd, action);
+                name, lore, flags, cmd, action, null);
     }
 
     private static void writeSegments(DataOutputStream out, List<Segment> segments) throws IOException {

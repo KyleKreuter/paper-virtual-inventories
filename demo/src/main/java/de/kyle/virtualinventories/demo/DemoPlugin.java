@@ -2,6 +2,8 @@ package de.kyle.virtualinventories.demo;
 
 import de.kyle.virtualinventories.VirtualInventories;
 import de.kyle.virtualinventories.menu.ClickHandler;
+import de.kyle.virtualinventories.provider.FileItemProvider;
+import de.kyle.virtualinventories.provider.ItemFactory;
 import de.kyle.virtualinventories.provider.MenuHooks;
 import de.kyle.virtualinventories.provider.MenuProvider;
 import de.kyle.virtualinventories.serialize.CompiledForm;
@@ -22,6 +24,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +40,7 @@ import java.util.UUID;
 public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
 
     private MenuProvider menus;
+    private FileItemProvider itemStore;
     private final Map<UUID, Integer> furnaceCook = new HashMap<>();
     private final Map<UUID, Map<CompiledForm.CompiledTrade, Integer>> tradeUses = new HashMap<>();
 
@@ -83,6 +87,11 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
                 null,
                 (player, session, slot) -> updateMerchantPreview(player, session)));
 
+        saveResource("items.yml", false);
+        itemStore = FileItemProvider.fromDataFolder(this);
+        menus.setItemProvider(itemStore);
+        ensureDemoItems();
+
         saveResource("menus/demo.yml", false);
         saveResource("menus/paged1.yml", false);
         saveResource("menus/paged2.yml", false);
@@ -111,7 +120,24 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         getCommand("vmenu").setExecutor(this);
         getCommand("vpaged").setExecutor(this);
         getCommand("vname").setExecutor(this);
+        getCommand("vitem").setExecutor(this);
         getCommand("vreload").setExecutor(this);
+    }
+
+    /**
+     * Seeds the {@code demo_crown} reference item on first boot so
+     * {@code menus/demo.yml} (slot 12) always resolves. Re-runs are no-ops.
+     */
+    private void ensureDemoItems() {
+        if (itemStore.has("demo_crown")) {
+            return;
+        }
+        ItemStack crown = ItemFactory.build("demo-seed", 0, "DIAMOND_HELMET", 1,
+                "<gold>Demo Crown",
+                List.of("<gray>Forged for demo purposes", "<gray>Ref: <yellow>demo_crown"),
+                List.of(), null, Map.of());
+        itemStore.exportItem("demo_crown", crown);
+        getLogger().info("Seeded demo item 'demo_crown'.");
     }
 
     @Override
@@ -133,6 +159,7 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
             switch (command.getName().toLowerCase()) {
                 case "vpaged" -> menus.open(player, "paged1");
                 case "vname" -> menus.open(player, "name");
+                case "vitem" -> vitem(player, args);
                 case "vreload" -> {
                     menus.reload();
                     player.sendMessage("Reloaded " + menus.menuIds().size()
@@ -148,6 +175,34 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
 
     private void switchPage(Player player, String menuId) {
         menus.switchTo(player, menuId);
+    }
+
+    private void vitem(Player player, String[] args) {
+        if (args.length != 2
+                || (!args[0].equalsIgnoreCase("export") && !args[0].equalsIgnoreCase("give"))) {
+            player.sendMessage("Usage: /vitem <export|give> <id>");
+            return;
+        }
+        String id = args[1];
+        if (args[0].equalsIgnoreCase("export")) {
+            ItemStack held = player.getInventory().getItemInMainHand();
+            if (held.getType().isAir()) {
+                player.sendMessage("Hold an item first.");
+                return;
+            }
+            itemStore.exportItem(id, held);
+            player.sendMessage("Exported held item as '" + id + "'.");
+            return;
+        }
+        if (!itemStore.has(id)) {
+            player.sendMessage("Unknown item '" + id + "'.");
+            return;
+        }
+        Map<Integer, ItemStack> leftover =
+                player.getInventory().addItem(itemStore.get(id));
+        leftover.values().forEach(item ->
+                player.getWorld().dropItemNaturally(player.getLocation(), item));
+        player.sendMessage("Given item '" + id + "'.");
     }
 
     private void enchant(Player viewer, MenuSession session, int level) {

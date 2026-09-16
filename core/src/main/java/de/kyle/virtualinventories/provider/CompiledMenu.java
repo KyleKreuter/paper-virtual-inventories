@@ -66,8 +66,17 @@ public final class CompiledMenu {
         this.trades = trades;
     }
 
-    /** Builds the runtime menu, pre-building every static slot once. */
+    /** Builds the runtime menu with an empty item provider (no {@code ref:} slots). */
     public static CompiledMenu materialize(CompiledForm form) {
+        return materialize(form, ItemProvider.empty());
+    }
+
+    /**
+     * Builds the runtime menu, pre-building every static slot once.
+     * {@code ref:} slots are resolved from {@code items} now (fail-fast on
+     * unknown ids) and behave like static templates afterwards.
+     */
+    public static CompiledMenu materialize(CompiledForm form, ItemProvider items) {
         String menuId = form.menuId();
         WindowType windowType;
         try {
@@ -94,7 +103,9 @@ public final class CompiledMenu {
             if (slot.action() != null) {
                 actions.put(slot.slot(), slot.action());
             }
-            if (slot.isDynamic()) {
+            if (slot.isReference()) {
+                staticItems[slot.slot()] = resolveReference(menuId, slot, items);
+            } else if (slot.isDynamic()) {
                 dynamicSlots.add(new DynamicSlot(slot.slot(), slot.material(), slot.amount(),
                         slot.amountPlaceholder(), slot.name(), slot.lore(), slot.flags(),
                         slot.customModelData()));
@@ -109,6 +120,26 @@ public final class CompiledMenu {
                 List.copyOf(dynamicSlots), form.placeholderKeys(), Map.copyOf(actions),
                 Map.copyOf(form.containerData()), Set.copyOf(form.outputSlots()),
                 Map.copyOf(form.buttonActions()), List.copyOf(form.trades()));
+    }
+
+    /**
+     * Resolves one {@code ref:} slot into its shared template. The provider's
+     * stack is cloned so later opens can never alias the stored template;
+     * only {@code amount} (when not 1) overrides the stored size.
+     */
+    private static ItemStack resolveReference(String menuId, CompiledForm.CompiledSlot slot,
+                                              ItemProvider items) {
+        String ref = slot.itemRef();
+        if (!items.has(ref)) {
+            throw MenuCompileException.at(menuId, "slots." + slot.slot(),
+                    "unknown item ref '" + ref + "' (no such id in the ItemProvider — "
+                            + "export it first, then reload menus)");
+        }
+        ItemStack resolved = items.get(ref).clone();
+        if (slot.amount() != 1) {
+            resolved.setAmount(slot.amount());
+        }
+        return resolved;
     }
 
     public String id() {
