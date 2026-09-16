@@ -167,11 +167,12 @@ public final class MenuCompiler {
                         (isDeposit ? "deposit" : "output")
                                 + " slots must use material AIR (player items go here)");
             }
-            if (slotDef.action() != null && !slotDef.action().isBlank()) {
-                throw MenuCompileException.at(menuId, where,
-                        (isDeposit ? "deposit" : "output")
-                                + " slots must not define 'action'");
-            }
+        }
+        // Deposit slots are pure item conduits. Output slots may define an
+        // 'action' that owns the take (trades, machines, ...); output clicks
+        // without an action hand over the displayed stack by default.
+        if (isDeposit && slotDef.action() != null && !slotDef.action().isBlank()) {
+            throw MenuCompileException.at(menuId, where, "deposit slots must not define 'action'");
         }
         if (item.amount() < 1 || item.amount() > 99) {
             throw MenuCompileException.at(menuId, where, "'amount' must be 1-99, got " + item.amount());

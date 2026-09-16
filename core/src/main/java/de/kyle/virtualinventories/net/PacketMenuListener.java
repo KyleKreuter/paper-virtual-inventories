@@ -129,12 +129,15 @@ public final class PacketMenuListener implements PacketListener {
         int slot = bottom ? -1 : rawSlot;
         ClickType type = ClickType.fromPacket(clickName, button);
 
-        // Output slots hand over real items: merchant results execute a trade,
-        // other outputs (furnace result, ...) give the displayed stack.
+        // Output slots: a registered action owns the outcome (trade, craft,
+        // ...); without one the displayed stack is handed over as-is.
         if (!bottom && session.menu().isOutputSlot(slot)) {
             try {
-                if (!session.menu().trades().isEmpty()) {
-                    session.tryMerchantTrade();
+                String actionId = session.menu().action(slot);
+                var handler = actionId == null ? null : session.actionHandler(actionId);
+                if (handler != null) {
+                    handler.handle(new ClickContext(player, session, slot, rawSlot,
+                            type, button, session.snapshot(slot), false));
                 } else {
                     ItemStack taken = session.takeOutputSlot(slot);
                     if (taken != null) {

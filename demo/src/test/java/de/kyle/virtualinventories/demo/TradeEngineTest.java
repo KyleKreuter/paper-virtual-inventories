@@ -1,4 +1,4 @@
-package de.kyle.virtualinventories.provider;
+package de.kyle.virtualinventories.demo;
 
 import de.kyle.virtualinventories.serialize.CompiledForm;
 import de.kyle.virtualinventories.serialize.DefinitionParser;

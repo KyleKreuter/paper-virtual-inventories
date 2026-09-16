@@ -1,4 +1,5 @@
 import me.drownek.plugwright.local.LocalMode
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     java
@@ -12,6 +13,14 @@ dependencies {
     implementation(project(":core"))
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("com.github.retrooper:packetevents-spigot:2.13.0")
+    testImplementation(project(":core"))
+    testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
 
 // Fat jar: bundles :core so the server only needs this one file

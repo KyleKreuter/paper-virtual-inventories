@@ -1,4 +1,4 @@
-package de.kyle.virtualinventories.provider;
+package de.kyle.virtualinventories.demo;
 
 import de.kyle.virtualinventories.serialize.CompiledForm;
 
@@ -14,6 +14,10 @@ import java.util.function.ToIntFunction;
  * the first cost, the second slot the optional second cost. A trade without
  * a second cost requires an empty second slot. Uses, XP, special prices and
  * demand are ignored (uses are checked against maxUses only).</p>
+ *
+ * <p>This is demo-side game logic on purpose: the core library only ships
+ * the mechanics (deposit slots, output slots, offers packets, hooks), while
+ * the actual trade rules live with the plugin developer.</p>
  */
 public final class TradeEngine {
 

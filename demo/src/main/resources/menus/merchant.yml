@@ -17,4 +17,6 @@ trades:
 slots:
   0: {material: AIR}
   1: {material: AIR}
-  2: {material: AIR}
+  2:
+    material: AIR
+    action: trade

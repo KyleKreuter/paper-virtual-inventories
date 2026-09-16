@@ -7,11 +7,9 @@ import de.kyle.virtualinventories.net.MenuPacketSender;
 import de.kyle.virtualinventories.provider.CompiledMenu;
 import de.kyle.virtualinventories.provider.MenuHooks;
 import de.kyle.virtualinventories.provider.MenuView;
-import de.kyle.virtualinventories.provider.TradeEngine;
 import de.kyle.virtualinventories.serialize.CompiledForm;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
@@ -20,8 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -55,7 +51,6 @@ public final class MenuSession {
     private ItemStack[] lastContent;
     private boolean open;
     private long lastRenameNanos;
-    private final Map<CompiledForm.CompiledTrade, Integer> tradeUses = new HashMap<>();
     private Map<String, ClickHandler> actionHandlers = Map.of();
     /** Stateful output visuals (merchant results, furnace products set via setSlot). */
     private final Map<Integer, ItemStack> outputVisuals = new HashMap<>();
@@ -147,12 +142,17 @@ public final class MenuSession {
         this.actionHandlers = Map.copyOf(actionHandlers);
     }
 
+    /** Action handler by id, or null when unregistered. */
+    public ClickHandler actionHandler(String actionId) {
+        return actionHandlers.get(actionId);
+    }
+
     /** Sends container data and merchant offers. Runs after opening/retargeting. */
     void sendExtras() {
         for (Map.Entry<Integer, Integer> data : menu.containerData().entrySet()) {
             sender.sendContainerData(player, containerId, data.getKey(), data.getValue());
         }
-        resendOffers();
+        resendOffers(Map.of());
     }
 
     /**
@@ -328,7 +328,7 @@ public final class MenuSession {
                 // Anything else (number keys, drags, ...) is cancelled with no effect.
             }
         }
-        refreshMerchantOutput();
+        hooks.onDeposit().depositChanged(player, this, bottom ? -1 : rawSlot);
         sender.syncCursor(player);
     }
 
@@ -352,12 +352,12 @@ public final class MenuSession {
     }
 
     /**
-     * Takes the visual stack from a non-merchant output slot (furnace result,
-     * ...). Returns the taken stack, or null when empty. The caller hands it
+     * Takes the visual stack from an output slot (furnace result, ...).
+     * Returns the taken stack, or null when empty. The caller hands it
      * to the player (cursor first, then inventory).
      */
     public ItemStack takeOutputSlot(int slot) {
-        if (!open || !menu.isOutputSlot(slot) || !menu.trades().isEmpty()) {
+        if (!open || !menu.isOutputSlot(slot)) {
             return null;
         }
         ItemStack inSlot = depositStack(slot);
@@ -370,111 +370,19 @@ public final class MenuSession {
     }
 
     /**
-     * Executes a merchant trade: consumes inputs, hands over a real result
-     * item, bumps uses and resends the offer list. Returns true on success.
+     * Re-sends the merchant offer list. Game state belongs to the caller:
+     * pass current use counts per trade (empty map when nothing is used).
      */
-    public boolean tryMerchantTrade() {
-        if (!open || menu.trades().isEmpty()) {
-            return false;
-        }
-        List<Integer> inputs = menu.depositSlots().stream()
-                .filter(s -> !menu.isOutputSlot(s)).sorted().toList();
-        if (inputs.isEmpty()) {
-            return false;
-        }
-        int first = inputs.get(0);
-        int second = inputs.size() > 1 ? inputs.get(1) : -1;
-        TradeEngine.SlotContent a = slotContent(first);
-        TradeEngine.SlotContent b =
-                second < 0 ? TradeEngine.SlotContent.empty() : slotContent(second);
-        Optional<TradeEngine.Match> match = TradeEngine.findMatch(
-                menu.trades(), a, b, t -> tradeUses.getOrDefault(t, 0));
-        if (match.isEmpty()) {
-            return false;
-        }
-        TradeEngine.Match hit = match.get();
-        consume(first, hit.consumeA());
-        if (second >= 0 && hit.consumeB() > 0) {
-            consume(second, hit.consumeB());
-        }
-        CompiledForm.CompiledTrade trade = hit.trade();
-        ItemStack result = new ItemStack(Objects.requireNonNull(
-                Material.matchMaterial(trade.result()), "unknown material " + trade.result()),
-                trade.resultCount());
-        if (player.getItemOnCursor().getType().isAir()) {
-            player.setItemOnCursor(result);
-        } else {
-            player.getInventory().addItem(result);
-            player.updateInventory();
-        }
-        tradeUses.merge(trade, 1, Integer::sum);
-        resendOffers();
-        refreshMerchantOutput();
-        return true;
-    }
-
-    /** Re-sends the merchant offer list with current use counts. */
-    public void resendOffers() {
+    public void resendOffers(Map<CompiledForm.CompiledTrade, Integer> uses) {
         if (!open || menu.trades().isEmpty()) {
             return;
         }
         List<com.github.retrooper.packetevents.protocol.recipe.data.MerchantOffer> offers =
                 new ArrayList<>(menu.trades().size());
         for (CompiledForm.CompiledTrade trade : menu.trades()) {
-            offers.add(MenuPacketSender.toOffer(trade, tradeUses.getOrDefault(trade, 0)));
+            offers.add(MenuPacketSender.toOffer(trade, uses.getOrDefault(trade, 0)));
         }
         sender.sendOffers(player, containerId, offers, 0, 0, false, true);
-    }
-
-    private TradeEngine.SlotContent slotContent(int slot) {
-        ItemStack stack = depositStack(slot);
-        if (stack.getType().isAir()) {
-            return TradeEngine.SlotContent.empty();
-        }
-        return new TradeEngine.SlotContent(stack.getType().name(), stack.getAmount());
-    }
-
-    private void consume(int slot, int amount) {
-        if (amount <= 0) {
-            return;
-        }
-        ItemStack stack = depositStack(slot);
-        if (stack.getAmount() <= amount) {
-            setDepositStack(slot, ItemStack.empty());
-        } else {
-            stack.setAmount(stack.getAmount() - amount);
-            setDepositStack(slot, stack);
-        }
-    }
-
-    /**
-     * Updates the merchant result visual from the current inputs. Vanilla
-     * merchants show the result only when a trade matches; we do the same.
-     */
-    private void refreshMerchantOutput() {
-        if (!open || menu.trades().isEmpty() || menu.outputSlots().isEmpty()) {
-            return;
-        }
-        List<Integer> inputs = menu.depositSlots().stream()
-                .filter(s -> !menu.isOutputSlot(s)).sorted().toList();
-        TradeEngine.SlotContent a = inputs.isEmpty()
-                ? TradeEngine.SlotContent.empty() : slotContent(inputs.get(0));
-        TradeEngine.SlotContent b = inputs.size() < 2
-                ? TradeEngine.SlotContent.empty() : slotContent(inputs.get(1));
-        Optional<TradeEngine.Match> match = TradeEngine.findMatch(
-                menu.trades(), a, b, t -> tradeUses.getOrDefault(t, 0));
-        int outSlot = menu.outputSlots().stream().sorted().findFirst().orElse(-1);
-        if (outSlot < 0) {
-            return;
-        }
-        ItemStack visual = ItemStack.empty();
-        if (match.isPresent()) {
-            CompiledForm.CompiledTrade trade = match.get().trade();
-            visual = new ItemStack(Objects.requireNonNull(
-                    Material.matchMaterial(trade.result()), "unknown material " + trade.result()),
-                    trade.resultCount());
-        }
-        setSlotNow(outSlot, visual);
     }
 
     private ItemStack depositStack(int slot) {

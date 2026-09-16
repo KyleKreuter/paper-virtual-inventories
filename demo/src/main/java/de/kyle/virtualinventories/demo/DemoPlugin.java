@@ -4,6 +4,7 @@ import de.kyle.virtualinventories.VirtualInventories;
 import de.kyle.virtualinventories.menu.ClickHandler;
 import de.kyle.virtualinventories.provider.MenuHooks;
 import de.kyle.virtualinventories.provider.MenuProvider;
+import de.kyle.virtualinventories.serialize.CompiledForm;
 import de.kyle.virtualinventories.session.MenuSession;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -22,6 +23,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -36,6 +38,7 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
 
     private MenuProvider menus;
     private final Map<UUID, Integer> furnaceCook = new HashMap<>();
+    private final Map<UUID, Map<CompiledForm.CompiledTrade, Integer>> tradeUses = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -69,10 +72,16 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         menus.action("enchant_1", ctx -> enchant(ctx.player(), ctx.session(), 1));
         menus.action("enchant_2", ctx -> enchant(ctx.player(), ctx.session(), 2));
         menus.action("enchant_3", ctx -> enchant(ctx.player(), ctx.session(), 3));
+        menus.action("trade", ctx -> trade(ctx.player(), ctx.session()));
 
         menus.hooks("demo", new MenuHooks(
                 (player, session) -> player.sendMessage("Welcome to the compiled demo menu."),
+                null,
                 null));
+        menus.hooks("merchant", new MenuHooks(
+                null,
+                null,
+                (player, session, slot) -> updateMerchantPreview(player, session)));
 
         saveResource("menus/demo.yml", false);
         saveResource("menus/paged1.yml", false);
@@ -156,6 +165,65 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
         session.setDeposit(0, tool);
         session.setDeposit(1, lapis.getAmount() > 0 ? lapis : null);
         viewer.sendMessage("Enchanted with Sharpness " + level + ".");
+    }
+
+    private void trade(Player viewer, MenuSession session) {
+        Map<CompiledForm.CompiledTrade, Integer> uses =
+                tradeUses.computeIfAbsent(viewer.getUniqueId(), key -> new HashMap<>());
+        Optional<TradeEngine.Match> match = TradeEngine.findMatch(session.menu().trades(),
+                content(session.deposit(0)), content(session.deposit(1)),
+                trade -> uses.getOrDefault(trade, 0));
+        if (match.isEmpty()) {
+            viewer.sendMessage("No matching trade.");
+            return;
+        }
+        TradeEngine.Match deal = match.get();
+        consumeDeposit(session, 0, deal.consumeA());
+        consumeDeposit(session, 1, deal.consumeB());
+        ItemStack result = new ItemStack(
+                Material.matchMaterial(deal.trade().result()), deal.trade().resultCount());
+        Map<Integer, ItemStack> leftover = viewer.getInventory().addItem(result);
+        leftover.values().forEach(item ->
+                viewer.getWorld().dropItemNaturally(viewer.getLocation(), item));
+        uses.merge(deal.trade(), 1, Integer::sum);
+        session.resendOffers(uses);
+        updateMerchantPreview(viewer, session);
+        viewer.sendMessage("Traded!");
+    }
+
+    private void updateMerchantPreview(Player viewer, MenuSession session) {
+        Map<CompiledForm.CompiledTrade, Integer> uses =
+                tradeUses.getOrDefault(viewer.getUniqueId(), Map.of());
+        Optional<TradeEngine.Match> match = TradeEngine.findMatch(session.menu().trades(),
+                content(session.deposit(0)), content(session.deposit(1)),
+                trade -> uses.getOrDefault(trade, 0));
+        if (match.isPresent()) {
+            CompiledForm.CompiledTrade trade = match.get().trade();
+            session.setSlot(2, new ItemStack(
+                    Material.matchMaterial(trade.result()), trade.resultCount()));
+        } else {
+            session.setSlot(2, new ItemStack(Material.AIR));
+        }
+    }
+
+    private static TradeEngine.SlotContent content(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) {
+            return TradeEngine.SlotContent.empty();
+        }
+        return new TradeEngine.SlotContent(stack.getType().name(), stack.getAmount());
+    }
+
+    private static void consumeDeposit(MenuSession session, int slot, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        ItemStack stack = session.deposit(slot);
+        if (stack == null) {
+            return;
+        }
+        int rest = stack.getAmount() - amount;
+        stack.setAmount(Math.max(rest, 0));
+        session.setDeposit(slot, rest > 0 ? stack : null);
     }
 
     private void tickMachines() {
