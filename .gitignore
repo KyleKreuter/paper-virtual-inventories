@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+*/build/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Docker runtime: server data + generated plugin state
+docker/data/
+docker/plugins/.paper-remapped/
+docker/plugins/bStats/
+docker/plugins/spark/
+docker/plugins/ViaVersion/
+docker/plugins/ViaBackwards/
+docker/plugins/PacketEvents/
+
+# Plugin jars (third-party downloads + build artifact).
+# Restore with:
+#   curl -fSL -o docker/plugins/packetevents-spigot-2.13.0.jar \
+#     https://github.com/retrooper/packetevents/releases/download/v2.13.0/packetevents-spigot-2.13.0.jar
+#   curl -fSL -o docker/plugins/ViaVersion.jar \
+#     https://github.com/ViaVersion/ViaVersion/releases/download/5.11.0/ViaVersion-5.11.0.jar
+#   curl -fSL -o docker/plugins/ViaBackwards.jar \
+#     https://github.com/ViaVersion/ViaBackwards/releases/download/5.11.0/ViaBackwards-5.11.0.jar
+#   ./gradlew :demo:shadowJar && cp demo/build/libs/virtual-inventories-demo.jar docker/plugins/
+docker/plugins/*.jar
+
+# Logs
+*.log

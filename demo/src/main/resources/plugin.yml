@@ -1,0 +1,12 @@
+name: virtual-inventories-demo
+version: 0.1.0-SNAPSHOT
+main: de.kyle.virtualinventories.demo.DemoPlugin
+api-version: '1.20'
+depend: [packetevents]
+commands:
+  vmenu:
+    description: Opens the packet-based demo menu
+    usage: /vmenu
+  vpaged:
+    description: Opens the paginated packet menu demo
+    usage: /vpaged
