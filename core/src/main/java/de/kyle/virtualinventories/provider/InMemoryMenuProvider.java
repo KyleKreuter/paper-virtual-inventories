@@ -201,7 +201,7 @@ public final class InMemoryMenuProvider implements MenuProvider {
     public MenuSession open(Player player, String menuId, Map<String, String> extra) {
         ensureMainThread();
         Target target = prepare(player, menuId, extra);
-        return sessions.openSession(player, target.menu(), target.view(), target.handlers(),
+        return sessions.openSession(player, target.menu(), target.view(), target.handlers(), actions,
                 target.hooks(), target.title(), target.content(), target.renderer());
     }
 
@@ -214,7 +214,7 @@ public final class InMemoryMenuProvider implements MenuProvider {
     public MenuSession switchTo(Player player, String menuId, Map<String, String> extra) {
         ensureMainThread();
         Target target = prepare(player, menuId, extra);
-        return sessions.switchSession(player, target.menu(), target.view(), target.handlers(),
+        return sessions.switchSession(player, target.menu(), target.view(), target.handlers(), actions,
                 target.hooks(), target.title(), target.content(), target.renderer());
     }
 
@@ -285,6 +285,13 @@ public final class InMemoryMenuProvider implements MenuProvider {
                         + entry.getValue() + "' (no handler registered)");
             }
             handlers.put(entry.getKey(), handler);
+        }
+        for (Map.Entry<Integer, String> entry : menu.buttonActions().entrySet()) {
+            if (!actions.containsKey(entry.getValue())) {
+                throw new MenuCompileException("[" + menu.id() + "] unknown button action '"
+                        + entry.getValue() + "' on button " + entry.getKey()
+                        + " (no handler registered)");
+            }
         }
         return handlers;
     }

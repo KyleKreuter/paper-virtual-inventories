@@ -1,0 +1,10 @@
+id: loom
+type: LOOM
+title: "<yellow>Loom <gray>(%player%)"
+deposit: [0, 1, 2]
+output: [3]
+slots:
+  0: {material: AIR}
+  1: {material: AIR}
+  2: {material: AIR}
+  3: {material: AIR}

@@ -133,7 +133,7 @@ class MenuCompilerTest {
 
     @Test
     void unknownWindowTypeFails() {
-        MenuDefinition def = new MenuDefinition("u", 1, "T", Map.of(), "FURNACE", List.of());
+        MenuDefinition def = new MenuDefinition("u", 1, "T", Map.of(), "DRAGON", List.of());
         assertThrows(MenuCompileException.class, () -> MenuCompiler.compile(def, "0".repeat(64)));
     }
 

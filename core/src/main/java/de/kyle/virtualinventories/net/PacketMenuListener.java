@@ -54,10 +54,14 @@ public final class PacketMenuListener implements PacketListener {
             // server-side container to close, and clean up the session.
             event.setCancelled(true);
             scheduleClose(playerId);
-        } else if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW_BUTTON
-                || event.getPacketType() == PacketType.Play.Client.CREATIVE_INVENTORY_ACTION) {
-            // Beacon/enchant buttons and creative item spawns have no meaning
-            // in a fake window. Cancel to avoid client/server desync.
+        } else if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW_BUTTON) {
+            // Window buttons (enchantment table, ...). Vanilla must not see
+            // them; mapped buttons fire menu actions instead.
+            event.setCancelled(true);
+            handleButton(event, playerId);
+        } else if (event.getPacketType() == PacketType.Play.Client.CREATIVE_INVENTORY_ACTION) {
+            // Creative item spawns have no meaning in a fake window. Cancel to
+            // avoid client/server desync.
             event.setCancelled(true);
         }
     }
@@ -125,9 +129,30 @@ public final class PacketMenuListener implements PacketListener {
         int slot = bottom ? -1 : rawSlot;
         ClickType type = ClickType.fromPacket(clickName, button);
 
+        // Output slots hand over real items: merchant results execute a trade,
+        // other outputs (furnace result, ...) give the displayed stack.
+        if (!bottom && session.menu().isOutputSlot(slot)) {
+            try {
+                if (!session.menu().trades().isEmpty()) {
+                    session.tryMerchantTrade();
+                } else {
+                    ItemStack taken = session.takeOutputSlot(slot);
+                    if (taken != null) {
+                        giveToPlayer(player, taken);
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Output handling failed: " + e.getMessage());
+            }
+            if (session.isOpen()) {
+                session.refresh();
+            }
+            return;
+        }
+
         // Deposit slots move real player items server-side; everything else is
         // a UI event. Shift-clicks from the player inventory fill deposits.
-        if (session.menu().windowType().isAnvil()
+        if (session.menu().windowType().allowsDeposit()
                 && ((slot >= 0 && session.menu().isDepositSlot(slot))
                     || (bottom && (type == ClickType.SHIFT_LEFT || type == ClickType.SHIFT_RIGHT)))) {
             try {
@@ -154,6 +179,49 @@ public final class PacketMenuListener implements PacketListener {
         // refreshed or closed the menu, this is a harmless no-op / skipped.
         if (session.isOpen()) {
             session.refresh();
+        }
+    }
+
+    private void handleButton(PacketReceiveEvent event, UUID playerId) {
+        final int windowId;
+        final int buttonId;
+        try {
+            com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindowButton
+                    button = new com.github.retrooper.packetevents.wrapper.play.client
+                            .WrapperPlayClientClickWindowButton(event);
+            windowId = button.getWindowId();
+            buttonId = button.getButtonId();
+        } catch (Exception e) {
+            plugin.getLogger().warning("Dropped malformed button packet from " + playerId);
+            return;
+        }
+        if (!sessions.ownsWindow(playerId, windowId)) {
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            Player player = Bukkit.getPlayer(playerId);
+            MenuSession session = sessions.get(playerId);
+            if (player == null || session == null || !session.isOpen()
+                    || session.containerId() != windowId) {
+                return;
+            }
+            try {
+                session.fireButton(buttonId);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Menu button handler failed: " + e.getMessage());
+            }
+            if (session.isOpen()) {
+                session.refresh();
+            }
+        });
+    }
+
+    private static void giveToPlayer(Player player, ItemStack taken) {
+        if (player.getItemOnCursor().getType().isAir()) {
+            player.setItemOnCursor(taken);
+        } else {
+            player.getInventory().addItem(taken);
+            player.updateInventory();
         }
     }
 

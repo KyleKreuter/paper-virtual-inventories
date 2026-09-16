@@ -1,0 +1,15 @@
+id: enchant
+type: ENCHANTMENT
+title: "<light_purple>Enchanter <gray>(%player%)"
+deposit: [0, 1]
+data:
+  0: 8
+  1: 16
+  2: 30
+buttons:
+  0: enchant_1
+  1: enchant_2
+  2: enchant_3
+slots:
+  0: {material: AIR}
+  1: {material: AIR}

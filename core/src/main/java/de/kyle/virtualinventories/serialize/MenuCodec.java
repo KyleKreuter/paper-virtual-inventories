@@ -7,7 +7,9 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.zip.CRC32;
@@ -20,16 +22,22 @@ import java.util.zip.GZIPOutputStream;
  * <pre>
  * gzip( magic "VMNU" | version u8 | sourceSha 32B | menuId utf
  *     | rows u8 | windowType utf | depositCount u8 | depositSlots u8...
+ *     | dataCount u8 | (property u16, value i32)...
+ *     | outputCount u8 | outputSlots u8...
+ *     | buttonCount u8 | (buttonId u16, action utf)...
+ *     | tradeCount u8 | trades...
  *     | title segments | slotCount u16 | slots... | crc32 )
+ * trade = buyA utf | buyACount u8 | buyB nullableUtf | buyBCount u8
+ *       | result utf | resultCount u8 | maxUses u16
  * </pre>
  *
- * <p>Version 1 blobs are rejected with a clear recompile hint.</p>
+ * <p>Version 1 and 2 blobs are rejected with a clear recompile hint.</p>
  *
  * <p>Pure logic, no Bukkit dependency (unit-testable).</p>
  */
 public final class MenuCodec {
 
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
     private static final byte[] MAGIC = {'V', 'M', 'N', 'U'};
 
     private MenuCodec() {
@@ -48,6 +56,24 @@ public final class MenuCodec {
             out.writeByte(form.depositSlots().size());
             for (int deposit : form.depositSlots()) {
                 out.writeByte(deposit);
+            }
+            out.writeByte(form.containerData().size());
+            for (Map.Entry<Integer, Integer> entry : form.containerData().entrySet()) {
+                out.writeShort(entry.getKey());
+                out.writeInt(entry.getValue());
+            }
+            out.writeByte(form.outputSlots().size());
+            for (int output : form.outputSlots()) {
+                out.writeByte(output);
+            }
+            out.writeByte(form.buttonActions().size());
+            for (Map.Entry<Integer, String> entry : form.buttonActions().entrySet()) {
+                out.writeShort(entry.getKey());
+                out.writeUTF(entry.getValue());
+            }
+            out.writeByte(form.trades().size());
+            for (CompiledForm.CompiledTrade trade : form.trades()) {
+                writeTrade(out, trade);
             }
             writeSegments(out, form.title());
             out.writeShort(form.slots().size());
@@ -81,9 +107,9 @@ public final class MenuCodec {
                 throw new MenuCompileException("Not a compiled menu blob (bad magic)");
             }
             int version = in.readUnsignedByte();
-            if (version == 1) {
-                throw new MenuCompileException("Compiled menu was built with format v1 "
-                        + "(no window types) — please recompile: delete compiled/*.vmenu.gz "
+            if (version == 1 || version == 2) {
+                throw new MenuCompileException("Compiled menu was built with format v" + version
+                        + " — please recompile: delete compiled/*.vmenu.gz "
                         + "or run /vreload");
             }
             if (version != FORMAT_VERSION) {
@@ -99,6 +125,26 @@ public final class MenuCodec {
             List<Integer> depositSlots = new ArrayList<>(depositCount);
             for (int i = 0; i < depositCount; i++) {
                 depositSlots.add(in.readUnsignedByte());
+            }
+            int dataCount = in.readUnsignedByte();
+            Map<Integer, Integer> containerData = new LinkedHashMap<>(dataCount);
+            for (int i = 0; i < dataCount; i++) {
+                containerData.put(in.readUnsignedShort(), in.readInt());
+            }
+            int outputCount = in.readUnsignedByte();
+            List<Integer> outputSlots = new ArrayList<>(outputCount);
+            for (int i = 0; i < outputCount; i++) {
+                outputSlots.add(in.readUnsignedByte());
+            }
+            int buttonCount = in.readUnsignedByte();
+            Map<Integer, String> buttonActions = new LinkedHashMap<>(buttonCount);
+            for (int i = 0; i < buttonCount; i++) {
+                buttonActions.put(in.readUnsignedShort(), in.readUTF());
+            }
+            int tradeCount = in.readUnsignedByte();
+            List<CompiledForm.CompiledTrade> trades = new ArrayList<>(tradeCount);
+            for (int i = 0; i < tradeCount; i++) {
+                trades.add(readTrade(in));
             }
             List<Segment> title = readSegments(in);
             int slotCount = in.readUnsignedShort();
@@ -123,12 +169,35 @@ public final class MenuCodec {
                 }
             }
             return new CompiledForm(menuId, rows, windowType, depositSlots, title, slots, keys,
-                    bytesToHex(sha));
+                    bytesToHex(sha), containerData, outputSlots, buttonActions, trades);
         } catch (EOFException e) {
             throw new MenuCompileException("Compiled menu blob is truncated");
         } catch (IOException e) {
             throw new MenuCompileException("Failed to decode compiled menu blob: " + e.getMessage());
         }
+    }
+
+    private static void writeTrade(DataOutputStream out, CompiledForm.CompiledTrade trade)
+            throws IOException {
+        out.writeUTF(trade.buyA());
+        out.writeByte(trade.buyACount());
+        writeNullableUtf(out, trade.buyB());
+        out.writeByte(trade.buyBCount() == null ? 0 : trade.buyBCount());
+        out.writeUTF(trade.result());
+        out.writeByte(trade.resultCount());
+        out.writeShort(trade.maxUses());
+    }
+
+    private static CompiledForm.CompiledTrade readTrade(DataInputStream in) throws IOException {
+        String buyA = in.readUTF();
+        int buyACount = in.readUnsignedByte();
+        String buyB = readNullableUtf(in);
+        int buyBCountRaw = in.readUnsignedByte();
+        String result = in.readUTF();
+        int resultCount = in.readUnsignedByte();
+        int maxUses = in.readUnsignedShort();
+        return new CompiledForm.CompiledTrade(buyA, buyACount, buyB,
+                buyB == null ? null : buyBCountRaw, result, resultCount, maxUses);
     }
 
     private static void writeSlot(DataOutputStream out, CompiledForm.CompiledSlot slot) throws IOException {

@@ -1,0 +1,20 @@
+id: merchant
+type: MERCHANT
+title: "<green>Trader <gray>(%player%)"
+deposit: [0, 1]
+output: [2]
+trades:
+  - buy_a: EMERALD
+    buy_a_count: 5
+    result: DIAMOND_SWORD
+    max_uses: 3
+  - buy_a: COAL
+    buy_a_count: 16
+    buy_b: IRON_INGOT
+    buy_b_count: 2
+    result: DIAMOND
+    max_uses: 12
+slots:
+  0: {material: AIR}
+  1: {material: AIR}
+  2: {material: AIR}

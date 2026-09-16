@@ -3,12 +3,14 @@ package de.kyle.virtualinventories.menu;
 /**
  * Window types supported by virtual menus. The vanilla type id follows the
  * {@code MenuType} registry order on 1.21 (GENERIC_9x1 = 0 .. GENERIC_9x6 = 5,
- * GENERIC_3x3 = 6, CRAFTER_3x3 = 7, ANVIL = 8, HOPPER = 16, SHULKER_BOX = 20).
+ * GENERIC_3x3 = 6, CRAFTER_3x3 = 7, ANVIL = 8, BLAST_FURNACE = 10,
+ * BREWING_STAND = 11, ENCHANTMENT = 13, FURNACE = 14, HOPPER = 16,
+ * LOOM = 18, MERCHANT = 19, SHULKER_BOX = 20, SMOKER = 22, STONECUTTER = 24).
  *
- * <p>Only plain container windows are supported: every slot is either static
- * or an action slot. Types that need extra server data (furnace progress,
- * enchantment options, merchant offers, stonecutter recipes, beacon levels)
- * are intentionally not included.
+ * <p>Plain containers render every slot from the compiled template. Furnaces,
+ * brewing stands, merchants, enchantment tables, stonecutters and looms need
+ * extra server data (container data values, offers, button actions) supplied
+ * via the matching definition sections.</p>
  */
 public enum WindowType {
     CHEST_9X1(0, 9),
@@ -21,7 +23,15 @@ public enum WindowType {
     GENERIC_3X3(6, 9),
     CRAFTER_3X3(7, 9),
     HOPPER(16, 5),
-    SHULKER_BOX(20, 27);
+    SHULKER_BOX(20, 27),
+    FURNACE(14, 3),
+    BLAST_FURNACE(10, 3),
+    SMOKER(22, 3),
+    BREWING_STAND(11, 5),
+    MERCHANT(19, 3),
+    ENCHANTMENT(13, 2),
+    STONECUTTER(24, 2),
+    LOOM(18, 4);
 
     private final int typeId;
     private final int slots;
@@ -42,6 +52,21 @@ public enum WindowType {
 
     public boolean isAnvil() {
         return this == ANVIL;
+    }
+
+    /**
+     * Whether players may put their own items into {@code deposit} slots of
+     * this window: anvils, furnaces, brewing stands, enchantment tables,
+     * merchant input slots, stonecutter input and loom input slots. Output
+     * slots ({@code output}) are take-only and allowed wherever they are
+     * declared.
+     */
+    public boolean allowsDeposit() {
+        return switch (this) {
+            case ANVIL, FURNACE, BLAST_FURNACE, SMOKER, BREWING_STAND,
+                    ENCHANTMENT, MERCHANT, STONECUTTER, LOOM -> true;
+            default -> false;
+        };
     }
 
     /** Chest window for a row count (1-6). */

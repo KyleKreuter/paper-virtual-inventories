@@ -6,8 +6,12 @@ import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCloseWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOpenWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetCursorItem;
+import com.github.retrooper.packetevents.protocol.recipe.data.MerchantItemCost;
+import com.github.retrooper.packetevents.protocol.recipe.data.MerchantOffer;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMerchantOffers;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowProperty;
 import de.kyle.virtualinventories.menu.WindowType;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
@@ -68,6 +72,43 @@ public final class MenuPacketSender {
 
     public void sendClose(Player player, int containerId) {
         send(player, new WrapperPlayServerCloseWindow(containerId));
+    }
+
+    /** Sends one container-data value (furnace progress, enchant levels, ...). */
+    public void sendContainerData(Player player, int containerId, int property, int value) {
+        send(player, new WrapperPlayServerWindowProperty(containerId, property, value));
+    }
+
+    /** Sends the full merchant offer list for a merchant window. */
+    public void sendOffers(Player player, int containerId,
+                           java.util.List<MerchantOffer> offers,
+                           int villagerLevel, int villagerXp,
+                           boolean showProgress, boolean canRestock) {
+        send(player, new WrapperPlayServerMerchantOffers(
+                containerId, offers, villagerLevel, villagerXp, showProgress, canRestock));
+    }
+
+    /** Builds one offer from a compiled trade with its current use count. */
+    public static MerchantOffer toOffer(
+            de.kyle.virtualinventories.serialize.CompiledForm.CompiledTrade trade, int uses) {
+        MerchantItemCost first = cost(trade.buyA(), trade.buyACount());
+        MerchantItemCost second = trade.buyB() == null
+                ? MerchantItemCost.emptyCost()
+                : cost(trade.buyB(), trade.buyBCount());
+        ItemStack result = SpigotConversionUtil.fromBukkitItemStack(
+                new org.bukkit.inventory.ItemStack(
+                        java.util.Objects.requireNonNull(
+                                org.bukkit.Material.matchMaterial(trade.result()),
+                                "unknown material " + trade.result()),
+                        trade.resultCount()));
+        return MerchantOffer.of(first, second, result, uses, trade.maxUses(), 0, 0, 0.0F, 0);
+    }
+
+    private static MerchantItemCost cost(String materialKey, int count) {
+        org.bukkit.Material material = org.bukkit.Material.matchMaterial(materialKey);
+        java.util.Objects.requireNonNull(material, "unknown material " + materialKey);
+        return MerchantItemCost.ofItem(SpigotConversionUtil.fromBukkitItemStack(
+                new org.bukkit.inventory.ItemStack(material, count)));
     }
 
     private void send(Player player, PacketWrapper<?> packet) {

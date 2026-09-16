@@ -94,7 +94,88 @@ public final class DefinitionParser {
                 }
             }
         }
-        return new MenuDefinition(menuId, rows, title, slots, type, deposit);
+        List<Integer> output = new ArrayList<>(cfg.getIntegerList("output"));
+
+        Map<Integer, Integer> containerData = new LinkedHashMap<>();
+        ConfigurationSection dataSection = cfg.getConfigurationSection("data");
+        if (dataSection != null) {
+            for (String key : dataSection.getKeys(false)) {
+                int property;
+                try {
+                    property = Integer.parseInt(key);
+                } catch (NumberFormatException e) {
+                    throw MenuCompileException.at(menuId, "data." + key, "property id is not a number");
+                }
+                Object valueRaw = dataSection.get(key);
+                if (!(valueRaw instanceof Number number)) {
+                    throw MenuCompileException.at(menuId, "data." + key, "value is not a number");
+                }
+                containerData.put(property, number.intValue());
+            }
+        }
+
+        Map<Integer, String> buttons = new LinkedHashMap<>();
+        ConfigurationSection buttonsSection = cfg.getConfigurationSection("buttons");
+        if (buttonsSection != null) {
+            for (String key : buttonsSection.getKeys(false)) {
+                int button;
+                try {
+                    button = Integer.parseInt(key);
+                } catch (NumberFormatException e) {
+                    throw MenuCompileException.at(menuId, "buttons." + key, "button id is not a number");
+                }
+                String action = buttonsSection.getString(key);
+                if (action == null || action.isBlank()) {
+                    throw MenuCompileException.at(menuId, "buttons." + key, "missing action id");
+                }
+                buttons.put(button, action.strip());
+            }
+        }
+
+        List<MenuDefinition.TradeDefinition> trades = new ArrayList<>();
+        for (Map<?, ?> raw : cfg.getMapList("trades")) {
+            trades.add(parseTrade(menuId, raw));
+        }
+        return new MenuDefinition(menuId, rows, title, slots, type, deposit,
+                containerData, output, buttons, trades);
+    }
+
+    private static MenuDefinition.TradeDefinition parseTrade(String menuId, Map<?, ?> raw) {
+        String buyA = stringField(menuId, raw, "buy_a", true);
+        int buyACount = intField(menuId, raw, "buy_a_count", 1);
+        Object buyBRaw = raw.get("buy_b");
+        String buyB = buyBRaw == null ? null : stringField(menuId, raw, "buy_b", true);
+        Integer buyBCount = buyBRaw == null ? null : intField(menuId, raw, "buy_b_count", 1);
+        String result = stringField(menuId, raw, "result", true);
+        int resultCount = intField(menuId, raw, "result_count", 1);
+        int maxUses = intField(menuId, raw, "max_uses", 12);
+        return new MenuDefinition.TradeDefinition(buyA, buyACount, buyB, buyBCount,
+                result, resultCount, maxUses);
+    }
+
+    private static String stringField(String menuId, Map<?, ?> raw, String field, boolean required) {
+        Object value = raw.get(field);
+        if (value == null) {
+            if (required) {
+                throw MenuCompileException.at(menuId, "trades", "trade is missing '" + field + "'");
+            }
+            return null;
+        }
+        if (!(value instanceof String text) || text.isBlank()) {
+            throw MenuCompileException.at(menuId, "trades", "trade field '" + field + "' must be a string");
+        }
+        return text.strip();
+    }
+
+    private static int intField(String menuId, Map<?, ?> raw, String field, int fallback) {
+        Object value = raw.get(field);
+        if (value == null) {
+            return fallback;
+        }
+        if (!(value instanceof Number number)) {
+            throw MenuCompileException.at(menuId, "trades", "trade field '" + field + "' must be a number");
+        }
+        return number.intValue();
     }
 
     private static MenuDefinition.SlotDefinition parseSlot(String menuId, int slot, ConfigurationSection sec) {

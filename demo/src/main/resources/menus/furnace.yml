@@ -1,0 +1,14 @@
+id: furnace
+type: FURNACE
+title: "<gold>Smelter <gray>(%player%)"
+deposit: [0, 1]
+output: [2]
+data:
+  0: 200
+  1: 200
+  2: 0
+  3: 200
+slots:
+  0: {material: AIR}
+  1: {material: AIR}
+  2: {material: AIR}

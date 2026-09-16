@@ -1,0 +1,8 @@
+id: stonecutter
+type: STONECUTTER
+title: "<gray>Stonecutter <gray>(%player%)"
+deposit: [0]
+output: [1]
+slots:
+  0: {material: AIR}
+  1: {material: AIR}

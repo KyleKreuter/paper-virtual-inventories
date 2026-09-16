@@ -1,0 +1,14 @@
+id: smoker
+type: SMOKER
+title: "<yellow>Smoker <gray>(%player%)"
+deposit: [0, 1]
+output: [2]
+data:
+  0: 100
+  1: 100
+  2: 0
+  3: 100
+slots:
+  0: {material: AIR}
+  1: {material: AIR}
+  2: {material: AIR}

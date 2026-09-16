@@ -36,7 +36,9 @@ public final class MenuCompiler {
             } catch (IllegalArgumentException e) {
                 throw MenuCompileException.at(menuId, "type",
                         "unknown window type '" + type + "' (expected CHEST, ANVIL, "
-                                + "GENERIC_3X3, CRAFTER_3X3, HOPPER or SHULKER_BOX)");
+                                + "GENERIC_3X3, CRAFTER_3X3, HOPPER, SHULKER_BOX, FURNACE, "
+                                + "BLAST_FURNACE, SMOKER, BREWING_STAND, MERCHANT, "
+                                + "ENCHANTMENT, STONECUTTER or LOOM)");
             }
             if (definition.rows() != 1) {
                 throw MenuCompileException.at(menuId, "rows",
@@ -44,9 +46,10 @@ public final class MenuCompiler {
             }
         }
         List<Integer> deposit = List.copyOf(definition.depositSlots());
-        if (!deposit.isEmpty() && !windowType.isAnvil()) {
+        if (!deposit.isEmpty() && !windowType.allowsDeposit()) {
             throw MenuCompileException.at(menuId, "deposit",
-                    "'deposit' is only supported for type ANVIL");
+                    "'deposit' is only supported for ANVIL, FURNACE, BLAST_FURNACE, "
+                            + "SMOKER, BREWING_STAND, ENCHANTMENT, MERCHANT, STONECUTTER and LOOM");
         }
         for (int slot : deposit) {
             if (slot < 0 || slot >= windowType.slots()) {
@@ -54,6 +57,45 @@ public final class MenuCompiler {
                         "slot " + slot + " out of bounds for " + windowType + " (0-"
                                 + (windowType.slots() - 1) + ")");
             }
+        }
+        List<Integer> output = List.copyOf(definition.outputSlots());
+        for (int slot : output) {
+            if (slot < 0 || slot >= windowType.slots()) {
+                throw MenuCompileException.at(menuId, "output",
+                        "slot " + slot + " out of bounds for " + windowType + " (0-"
+                                + (windowType.slots() - 1) + ")");
+            }
+            if (deposit.contains(slot)) {
+                throw MenuCompileException.at(menuId, "output",
+                        "slot " + slot + " is already a deposit slot");
+            }
+        }
+        Map<Integer, Integer> containerData = Map.copyOf(definition.containerData());
+        for (Map.Entry<Integer, Integer> entry : containerData.entrySet()) {
+            if (entry.getKey() < 0 || entry.getKey() > 255) {
+                throw MenuCompileException.at(menuId, "data",
+                        "property id " + entry.getKey() + " out of range (0-255)");
+            }
+        }
+        Map<Integer, String> buttons = Map.copyOf(definition.buttonActions());
+        for (Map.Entry<Integer, String> entry : buttons.entrySet()) {
+            if (entry.getKey() < 0 || entry.getKey() > 255) {
+                throw MenuCompileException.at(menuId, "buttons",
+                        "button id " + entry.getKey() + " out of range (0-255)");
+            }
+            if (entry.getValue() == null || entry.getValue().isBlank()
+                    || !entry.getValue().matches("[A-Za-z0-9_.-]+")) {
+                throw MenuCompileException.at(menuId, "buttons",
+                        "invalid action id '" + entry.getValue() + "'");
+            }
+        }
+        List<CompiledForm.CompiledTrade> trades = new ArrayList<>();
+        for (MenuDefinition.TradeDefinition trade : definition.trades()) {
+            trades.add(compileTrade(menuId, trade));
+        }
+        if (!trades.isEmpty() && !"MERCHANT".equals(windowType.name())) {
+            throw MenuCompileException.at(menuId, "trades",
+                    "'trades' is only supported for type MERCHANT");
         }
         String title = definition.title() == null ? "" : definition.title();
         int maxSlot = "CHEST".equals(type) ? definition.rows() * 9 : windowType.slots();
@@ -70,25 +112,65 @@ public final class MenuCompiler {
                         "out of bounds for " + windowType + " (0-" + (maxSlot - 1) + ")");
             }
             MenuDefinition.SlotDefinition slotDef = definition.slots().get(slot);
-            slots.add(compileSlot(menuId, slot, slotDef, keys, deposit.contains(slot)));
+            slots.add(compileSlot(menuId, slot, slotDef, keys,
+                    deposit.contains(slot), output.contains(slot)));
         }
         return new CompiledForm(menuId, definition.rows(), windowType.name(), deposit,
-                Segments.parse(title), List.copyOf(slots), Set.copyOf(keys), sourceShaHex);
+                Segments.parse(title), List.copyOf(slots), Set.copyOf(keys), sourceShaHex,
+                containerData, output, buttons, List.copyOf(trades));
+    }
+
+    private static CompiledForm.CompiledTrade compileTrade(
+            String menuId, MenuDefinition.TradeDefinition trade) {
+        requireMaterial(menuId, "trades", trade.buyA());
+        requireCount(menuId, "trades", trade.buyACount());
+        if (trade.buyB() != null) {
+            requireMaterial(menuId, "trades", trade.buyB());
+            if (trade.buyBCount() == null) {
+                throw MenuCompileException.at(menuId, "trades",
+                        "trade with 'buy_b' needs 'buy_b_count'");
+            }
+            requireCount(menuId, "trades", trade.buyBCount());
+        }
+        requireMaterial(menuId, "trades", trade.result());
+        requireCount(menuId, "trades", trade.resultCount());
+        if (trade.maxUses() < 1 || trade.maxUses() > 1_000_000) {
+            throw MenuCompileException.at(menuId, "trades",
+                    "'max_uses' must be >= 1, got " + trade.maxUses());
+        }
+        return new CompiledForm.CompiledTrade(trade.buyA(), trade.buyACount(),
+                trade.buyB(), trade.buyBCount(), trade.result(), trade.resultCount(),
+                trade.maxUses());
+    }
+
+    private static void requireMaterial(String menuId, String where, String material) {
+        if (material == null || material.isBlank()) {
+            throw MenuCompileException.at(menuId, where, "trade needs a material name");
+        }
+    }
+
+    private static void requireCount(String menuId, String where, int count) {
+        if (count < 1 || count > 64) {
+            throw MenuCompileException.at(menuId, where,
+                    "trade counts must be 1-64, got " + count);
+        }
     }
 
     private static CompiledForm.CompiledSlot compileSlot(
             String menuId, int slot, MenuDefinition.SlotDefinition slotDef, Set<String> keys,
-            boolean isDeposit) {
+            boolean isDeposit, boolean isOutput) {
         String where = "slots." + slot;
         MenuDefinition.ItemTemplate item = slotDef.item();
-        if (isDeposit) {
+        if (isDeposit || isOutput) {
             if (!"AIR".equalsIgnoreCase(item.material())) {
                 throw MenuCompileException.at(menuId, where,
-                        "deposit slots must use material AIR (player items go here)");
+                        (isDeposit ? "deposit" : "output")
+                                + " slots must use material AIR (player items go here)");
             }
             if (slotDef.action() != null && !slotDef.action().isBlank()) {
                 throw MenuCompileException.at(menuId, where,
-                        "deposit slots must not define 'action'");
+                        (isDeposit ? "deposit" : "output")
+                                + " slots must not define 'action'");
             }
         }
         if (item.amount() < 1 || item.amount() > 99) {

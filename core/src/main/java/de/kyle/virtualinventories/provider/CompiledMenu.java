@@ -34,6 +34,10 @@ public final class CompiledMenu {
     private final List<DynamicSlot> dynamicSlots;
     private final Set<String> placeholderKeys;
     private final Map<Integer, String> actions;
+    private final Map<Integer, Integer> containerData;
+    private final Set<Integer> outputSlots;
+    private final Map<Integer, String> buttonActions;
+    private final List<CompiledForm.CompiledTrade> trades;
 
     /** A slot whose content depends on placeholders, resolved per open. */
     public record DynamicSlot(int slot, String material, int amount, String amountPlaceholder,
@@ -44,7 +48,9 @@ public final class CompiledMenu {
     private CompiledMenu(String id, WindowType windowType, MenuSize size, Set<Integer> depositSlots,
                          List<Segment> title, ItemStack[] staticItems,
                          List<DynamicSlot> dynamicSlots, Set<String> placeholderKeys,
-                         Map<Integer, String> actions) {
+                         Map<Integer, String> actions, Map<Integer, Integer> containerData,
+                         Set<Integer> outputSlots, Map<Integer, String> buttonActions,
+                         List<CompiledForm.CompiledTrade> trades) {
         this.id = id;
         this.windowType = windowType;
         this.size = size;
@@ -54,6 +60,10 @@ public final class CompiledMenu {
         this.dynamicSlots = dynamicSlots;
         this.placeholderKeys = placeholderKeys;
         this.actions = actions;
+        this.containerData = containerData;
+        this.outputSlots = outputSlots;
+        this.buttonActions = buttonActions;
+        this.trades = trades;
     }
 
     /** Builds the runtime menu, pre-building every static slot once. */
@@ -96,7 +106,9 @@ public final class CompiledMenu {
         }
         return new CompiledMenu(menuId, windowType, size, Set.copyOf(form.depositSlots()),
                 form.title(), staticItems,
-                List.copyOf(dynamicSlots), form.placeholderKeys(), Map.copyOf(actions));
+                List.copyOf(dynamicSlots), form.placeholderKeys(), Map.copyOf(actions),
+                Map.copyOf(form.containerData()), Set.copyOf(form.outputSlots()),
+                Map.copyOf(form.buttonActions()), List.copyOf(form.trades()));
     }
 
     public String id() {
@@ -141,6 +153,35 @@ public final class CompiledMenu {
     /** Action id bound to a slot, or null. */
     public String action(int slot) {
         return actions.get(slot);
+    }
+
+    /** Static container-data values, sent right after opening. */
+    public Map<Integer, Integer> containerData() {
+        return containerData;
+    }
+
+    /** Output slots: clicking takes the stack and fires no slot action. */
+    public Set<Integer> outputSlots() {
+        return outputSlots;
+    }
+
+    public boolean isOutputSlot(int slot) {
+        return outputSlots.contains(slot);
+    }
+
+    /** Button id to action id mapping (enchantment table, ...). */
+    public Map<Integer, String> buttonActions() {
+        return buttonActions;
+    }
+
+    /** Action id bound to a window button, or null. */
+    public String buttonAction(int buttonId) {
+        return buttonActions.get(buttonId);
+    }
+
+    /** Compiled merchant trades, empty for non-merchant menus. */
+    public List<CompiledForm.CompiledTrade> trades() {
+        return trades;
     }
 
     public Component renderTitle(Map<String, String> scope) {

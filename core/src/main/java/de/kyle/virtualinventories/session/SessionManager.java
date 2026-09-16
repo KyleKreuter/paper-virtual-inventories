@@ -34,18 +34,20 @@ public final class SessionManager {
     }
 
     public MenuSession openSession(Player player, CompiledMenu menu, MenuView view,
-                                   Map<Integer, ClickHandler> handlers, MenuHooks hooks,
-                                   Component title, ItemStack[] content,
+                                   Map<Integer, ClickHandler> handlers, Map<String, ClickHandler> actionHandlers,
+                                   MenuHooks hooks, Component title, ItemStack[] content,
                                    MenuSession.ContentRenderer renderer) {
         close(player);
         int containerId = ids.allocate();
         MenuSession session = new MenuSession(plugin, this, sender, player, menu, view,
-                handlers, hooks == null ? MenuHooks.empty() : hooks, renderer, title, containerId);
+                handlers, actionHandlers, hooks == null ? MenuHooks.empty() : hooks,
+                renderer, title, containerId);
         sessions.put(player.getUniqueId(), session);
         sender.sendOpen(player, containerId, menu.windowType(), title);
         sender.sendFullContents(player, containerId, session.nextStateId(), content);
-        sender.syncCursor(player);
         session.markOpen(content);
+        session.sendExtras();
+        sender.syncCursor(player);
         if (session.menu() != null && hooks != null && hooks.onOpen() != null) {
             hooks.onOpen().accept(player, session);
         }
@@ -64,15 +66,15 @@ public final class SessionManager {
      * <p>Must run on the Bukkit main thread.</p>
      */
     public MenuSession switchSession(Player player, CompiledMenu menu, MenuView view,
-                                     Map<Integer, ClickHandler> handlers, MenuHooks hooks,
-                                     Component title, ItemStack[] content,
+                                     Map<Integer, ClickHandler> handlers, Map<String, ClickHandler> actionHandlers,
+                                     MenuHooks hooks, Component title, ItemStack[] content,
                                      MenuSession.ContentRenderer renderer) {
         MenuSession current = sessions.get(player.getUniqueId());
         if (current != null && current.isOpen()
                 && current.menu().windowType() == menu.windowType()
                 && current.menu().slotCount() == menu.slotCount()
                 && current.title().equals(title)) {
-            current.retarget(menu, view, handlers,
+            current.retarget(menu, view, handlers, actionHandlers,
                     hooks == null ? MenuHooks.empty() : hooks, renderer);
             return current;
         }
@@ -81,7 +83,7 @@ public final class SessionManager {
                     + "' (current=" + current.menu().id() + "/" + current.menu().windowType()
                     + (current.isOpen() ? "" : "/closed") + ", new=" + menu.windowType() + ")");
         }
-        return openSession(player, menu, view, handlers, hooks, title, content, renderer);
+        return openSession(player, menu, view, handlers, actionHandlers, hooks, title, content, renderer);
     }
 
     /** Applies rename text typed into the player's open anvil menu, if any. */
