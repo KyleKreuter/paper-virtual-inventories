@@ -27,6 +27,13 @@ to duplicate from, because there is nothing.
 4. **Per-player window IDs** (never 0, pooled 1–100), one session per player, cleanup on
    quit/kick/death. No shared mutable slot state: static slots are pre-built once and only
    ever sent as clones.
+5. **Click rate limiting.** Every session owns a token bucket (default: burst of 10,
+   10 clicks/second sustained). Clicks arriving on an empty bucket are silently dropped
+   on the Netty thread — before they ever reach the main-thread scheduler — so a modded
+   client or macro cannot spam actions. The client-predicted ghost of dropped clicks is
+   healed by a resync throttled to twice per second. Configured once via
+   `VirtualInventories.init(plugin, new ClickRateLimit(5, 5))`; retargeting to another
+   menu keeps the same session and therefore the same bucket.
 
 ## Architecture
 

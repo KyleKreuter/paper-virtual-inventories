@@ -52,13 +52,20 @@ public final class MenuSession {
     private boolean open;
     private long lastRenameNanos;
     private Map<String, ClickHandler> actionHandlers = Map.of();
+    /** Token bucket for click spam protection (checked on the Netty thread). */
+    private final TokenBucket clickBucket;
+    private long droppedClicks;
+    private long lastDropResyncNanos;
+    /** Minimum gap between ghost-healing resyncs while clicks are dropped. */
+    private static final long DROP_RESYNC_NANOS = 500_000_000L;
     /** Stateful output visuals (merchant results, furnace products set via setSlot). */
     private final Map<Integer, ItemStack> outputVisuals = new HashMap<>();
 
     MenuSession(Plugin plugin, SessionManager manager, MenuPacketSender sender,
                 Player player, CompiledMenu menu, MenuView view,
                 Map<Integer, ClickHandler> handlers, Map<String, ClickHandler> actionHandlers,
-                MenuHooks hooks, ContentRenderer renderer, Component title, int containerId) {
+                MenuHooks hooks, ContentRenderer renderer, Component title, int containerId,
+                ClickRateLimit clickLimit) {
         this.plugin = plugin;
         this.manager = manager;
         this.sender = sender;
@@ -72,6 +79,7 @@ public final class MenuSession {
         this.renderer = renderer;
         this.title = title;
         this.containerId = containerId;
+        this.clickBucket = new TokenBucket(clickLimit.maxBurst(), clickLimit.perSecond());
     }
 
     public Player player() {
@@ -110,6 +118,39 @@ public final class MenuSession {
 
     public int nextStateId() {
         return stateId.getAndIncrement();
+    }
+
+    /**
+     * Token-bucket gate for incoming clicks. Safe to call from the Netty
+     * thread: sheds click spam before it reaches the main-thread scheduler.
+     *
+     * @return true if the click may be processed
+     */
+    public synchronized boolean tryConsumeClick() {
+        if (clickBucket.tryConsume()) {
+            return true;
+        }
+        droppedClicks++;
+        return false;
+    }
+
+    /**
+     * Returns true at most once every 500 ms. Used to heal the
+     * client-predicted ghost of dropped clicks without turning the resync
+     * into an amplification vector for the spammer.
+     */
+    public synchronized boolean pollDropResync() {
+        long now = System.nanoTime();
+        if (now - lastDropResyncNanos >= DROP_RESYNC_NANOS) {
+            lastDropResyncNanos = now;
+            return true;
+        }
+        return false;
+    }
+
+    /** Clicks silently dropped by the rate limiter since the session opened. */
+    public synchronized long droppedClicks() {
+        return droppedClicks;
     }
 
     /** Dispatches a menu-grid click to the slot's action handler. */

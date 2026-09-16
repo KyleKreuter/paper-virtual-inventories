@@ -93,6 +93,19 @@ public final class PacketMenuListener implements PacketListener {
             return;
         }
 
+        MenuSession gated = sessions.get(playerId);
+        if (gated != null && !gated.tryConsumeClick()) {
+            // Click spam (modded client, macro): drop silently. The
+            // client-predicted ghost is healed at most twice per second —
+            // resyncing every dropped packet would turn the resync itself
+            // into an amplification vector.
+            event.setCancelled(true);
+            if (gated.pollDropResync()) {
+                resync(playerId);
+            }
+            return;
+        }
+
         event.setCancelled(true);
         Bukkit.getScheduler().runTask(plugin, () -> dispatchClick(playerId, windowId, rawSlot, button, clickName));
     }

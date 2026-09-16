@@ -27,10 +27,16 @@ public final class SessionManager {
     private final MenuPacketSender sender;
     private final WindowIdAllocator ids = new WindowIdAllocator();
     private final ConcurrentHashMap<UUID, MenuSession> sessions = new ConcurrentHashMap<>();
+    private final ClickRateLimit clickLimit;
 
     public SessionManager(Plugin plugin, MenuPacketSender sender) {
+        this(plugin, sender, ClickRateLimit.defaults());
+    }
+
+    public SessionManager(Plugin plugin, MenuPacketSender sender, ClickRateLimit clickLimit) {
         this.plugin = plugin;
         this.sender = sender;
+        this.clickLimit = clickLimit;
     }
 
     public MenuSession openSession(Player player, CompiledMenu menu, MenuView view,
@@ -41,7 +47,7 @@ public final class SessionManager {
         int containerId = ids.allocate();
         MenuSession session = new MenuSession(plugin, this, sender, player, menu, view,
                 handlers, actionHandlers, hooks == null ? MenuHooks.empty() : hooks,
-                renderer, title, containerId);
+                renderer, title, containerId, clickLimit);
         sessions.put(player.getUniqueId(), session);
         sender.sendOpen(player, containerId, menu.windowType(), title);
         sender.sendFullContents(player, containerId, session.nextStateId(), content);

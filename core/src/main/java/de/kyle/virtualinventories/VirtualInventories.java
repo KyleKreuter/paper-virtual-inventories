@@ -8,6 +8,7 @@ import de.kyle.virtualinventories.net.MenuPacketSender;
 import de.kyle.virtualinventories.net.PacketMenuListener;
 import de.kyle.virtualinventories.provider.InMemoryMenuProvider;
 import de.kyle.virtualinventories.provider.MenuProvider;
+import de.kyle.virtualinventories.session.ClickRateLimit;
 import de.kyle.virtualinventories.session.MenuSession;
 import de.kyle.virtualinventories.session.SessionManager;
 import org.bukkit.Bukkit;
@@ -48,25 +49,41 @@ public final class VirtualInventories {
     private final MenuPacketSender sender;
     private final SessionManager sessions;
     private final MenuProvider menus;
+    private final ClickRateLimit clickLimit;
     private final PacketMenuListener packetListener;
     private final MenuBukkitListener bukkitListener;
     private PacketListenerCommon registration;
     private boolean shutDown;
 
     private VirtualInventories(Plugin plugin) {
+        this(plugin, ClickRateLimit.defaults());
+    }
+
+    private VirtualInventories(Plugin plugin, ClickRateLimit clickLimit) {
         this.plugin = plugin;
+        this.clickLimit = clickLimit;
         this.sender = new MenuPacketSender();
-        this.sessions = new SessionManager(plugin, sender);
+        this.sessions = new SessionManager(plugin, sender, clickLimit);
         this.menus = new InMemoryMenuProvider(plugin, sessions);
         this.packetListener = new PacketMenuListener(plugin, sessions);
         this.bukkitListener = new MenuBukkitListener(sessions);
     }
 
     /**
-     * Initializes the library. Safe to call once per plugin enable.
+     * Initializes the library with the default click rate limit
+     * ({@link ClickRateLimit#defaults()}). Safe to call once per plugin enable.
      * Registers the packet interceptor and session cleanup listeners.
      */
     public static synchronized VirtualInventories init(Plugin plugin) {
+        return init(plugin, ClickRateLimit.defaults());
+    }
+
+    /**
+     * Initializes the library with a custom click rate limit. Use this to
+     * tighten (or loosen) spam protection, e.g.
+     * {@code init(plugin, new ClickRateLimit(5, 5))}.
+     */
+    public static synchronized VirtualInventories init(Plugin plugin, ClickRateLimit clickLimit) {
         if (instance != null && !instance.shutDown) {
             return instance;
         }
@@ -76,7 +93,7 @@ public final class VirtualInventories {
             throw new IllegalStateException("PacketEvents classes not found. "
                     + "Add packetevents-spigot as dependency and 'depend: [packetevents]' to plugin.yml.", e);
         }
-        VirtualInventories api = new VirtualInventories(plugin);
+        VirtualInventories api = new VirtualInventories(plugin, clickLimit);
         api.registration = PacketEvents.getAPI().getEventManager()
                 .registerListener(api.packetListener, PacketListenerPriority.HIGH);
         Bukkit.getPluginManager().registerEvents(api.bukkitListener, plugin);
@@ -94,6 +111,11 @@ public final class VirtualInventories {
     /** The menu provider: register menus, placeholders and click actions here. */
     public MenuProvider menus() {
         return menus;
+    }
+
+    /** The click rate limit all sessions enforce. */
+    public ClickRateLimit clickRateLimit() {
+        return clickLimit;
     }
 
     /** Opens a compiled menu for the player. Must be called on the main thread. */
