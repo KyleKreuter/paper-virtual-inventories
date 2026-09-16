@@ -1,6 +1,6 @@
 id: paged1
 rows: 4
-title: "<gold>Entries <gray>1/3 <dark_gray>(%player%)"
+title: "<gold>Entries <dark_gray>(%player%)"
 slots:
   0: {material: PAPER, name: "<yellow>Entry #1", lore: ["<gray>Pick me"], action: pick}
   1: {material: PAPER, name: "<yellow>Entry #2", lore: ["<gray>Pick me"], action: pick}

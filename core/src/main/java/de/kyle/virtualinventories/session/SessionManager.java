@@ -40,16 +40,47 @@ public final class SessionManager {
         close(player);
         int containerId = ids.allocate();
         MenuSession session = new MenuSession(plugin, this, sender, player, menu, view,
-                handlers, hooks == null ? MenuHooks.empty() : hooks, renderer, containerId);
+                handlers, hooks == null ? MenuHooks.empty() : hooks, renderer, title, containerId);
         sessions.put(player.getUniqueId(), session);
         sender.sendOpen(player, containerId, menu.size(), title);
         sender.sendFullContents(player, containerId, session.nextStateId(), content);
-        sender.resetCursor(player);
+        sender.syncCursor(player);
         session.markOpen(content);
         if (session.menu() != null && hooks != null && hooks.onOpen() != null) {
             hooks.onOpen().accept(player, session);
         }
         return session;
+    }
+
+    /**
+     * Switches the player's open window to different content without closing it.
+     * Used for navigation (e.g. menu pages): no flicker, no sound, same window id,
+     * and no window open/close roundtrip that could disturb the client cursor.
+     *
+     * <p>Falls back to {@link #openSession} (close + reopen) when no menu is open
+     * or the new content has a different size or title — titles can only be set
+     * by opening a window (protocol limitation).</p>
+     *
+     * <p>Must run on the Bukkit main thread.</p>
+     */
+    public MenuSession switchSession(Player player, CompiledMenu menu, MenuView view,
+                                     Map<Integer, ClickHandler> handlers, MenuHooks hooks,
+                                     Component title, ItemStack[] content,
+                                     MenuSession.ContentRenderer renderer) {
+        MenuSession current = sessions.get(player.getUniqueId());
+        if (current != null && current.isOpen()
+                && current.menu().size() == menu.size()
+                && current.title().equals(title)) {
+            current.retarget(menu, view, handlers,
+                    hooks == null ? MenuHooks.empty() : hooks, renderer);
+            return current;
+        }
+        if (current != null) {
+            plugin.getLogger().info("switchSession falls back to reopen for '" + menu.id()
+                    + "' (current=" + current.menu().id() + "/" + current.menu().size()
+                    + (current.isOpen() ? "" : "/closed") + ", new=" + menu.size() + ")");
+        }
+        return openSession(player, menu, view, handlers, hooks, title, content, renderer);
     }
 
     public void close(Player player) {

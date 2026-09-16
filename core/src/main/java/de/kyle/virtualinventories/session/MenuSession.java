@@ -6,6 +6,7 @@ import de.kyle.virtualinventories.net.MenuPacketSender;
 import de.kyle.virtualinventories.provider.CompiledMenu;
 import de.kyle.virtualinventories.provider.MenuHooks;
 import de.kyle.virtualinventories.provider.MenuView;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -34,11 +35,12 @@ public final class MenuSession {
     private final MenuPacketSender sender;
     private final Player player;
     private final UUID playerId;
-    private final CompiledMenu menu;
-    private final MenuView view;
-    private final Map<Integer, ClickHandler> handlers;
-    private final MenuHooks hooks;
-    private final ContentRenderer renderer;
+    private CompiledMenu menu;
+    private MenuView view;
+    private Map<Integer, ClickHandler> handlers;
+    private MenuHooks hooks;
+    private ContentRenderer renderer;
+    private Component title;
     private final int containerId;
     private final AtomicInteger stateId = new AtomicInteger(1);
     private ItemStack[] lastContent;
@@ -47,7 +49,7 @@ public final class MenuSession {
     MenuSession(Plugin plugin, SessionManager manager, MenuPacketSender sender,
                 Player player, CompiledMenu menu, MenuView view,
                 Map<Integer, ClickHandler> handlers, MenuHooks hooks,
-                ContentRenderer renderer, int containerId) {
+                ContentRenderer renderer, Component title, int containerId) {
         this.plugin = plugin;
         this.manager = manager;
         this.sender = sender;
@@ -58,6 +60,7 @@ public final class MenuSession {
         this.handlers = handlers;
         this.hooks = hooks;
         this.renderer = renderer;
+        this.title = title;
         this.containerId = containerId;
     }
 
@@ -75,6 +78,11 @@ public final class MenuSession {
 
     public String menuId() {
         return menu.id();
+    }
+
+    /** Title rendered when the window was opened (titles cannot change in place). */
+    public Component title() {
+        return title;
     }
 
     public int containerId() {
@@ -102,6 +110,29 @@ public final class MenuSession {
         }
     }
 
+    /**
+     * Switches the open window to different content without closing it.
+     * No flicker, no close/open sound, same window id. The new content must
+     * have the same slot count and the same title (protocol limitation:
+     * titles can only be set by opening a window). Hooks do not fire;
+     * the player never left the screen.
+     *
+     * <p>Must be called on the Bukkit main thread on an open session.</p>
+     */
+    public void retarget(CompiledMenu menu, MenuView view,
+                         Map<Integer, ClickHandler> handlers, MenuHooks hooks,
+                         ContentRenderer renderer) {
+        if (!open) {
+            return;
+        }
+        this.menu = menu;
+        this.view = view;
+        this.handlers = handlers;
+        this.hooks = hooks;
+        this.renderer = renderer;
+        refreshNow();
+    }
+
     /** Re-renders the whole menu content. Safe to call from async threads. */
     public void refresh() {
         if (Bukkit.isPrimaryThread()) {
@@ -118,7 +149,7 @@ public final class MenuSession {
         ItemStack[] content = renderer.get();
         lastContent = content;
         sender.sendFullContents(player, containerId, nextStateId(), content);
-        sender.resetCursor(player);
+        sender.syncCursor(player);
     }
 
     /** Updates a single slot visually. Safe to call from async threads. */

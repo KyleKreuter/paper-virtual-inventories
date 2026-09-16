@@ -200,6 +200,26 @@ public final class InMemoryMenuProvider implements MenuProvider {
     @Override
     public MenuSession open(Player player, String menuId, Map<String, String> extra) {
         ensureMainThread();
+        Target target = prepare(player, menuId, extra);
+        return sessions.openSession(player, target.menu(), target.view(), target.handlers(),
+                target.hooks(), target.title(), target.content(), target.renderer());
+    }
+
+    @Override
+    public MenuSession switchTo(Player player, String menuId) {
+        return switchTo(player, menuId, Map.of());
+    }
+
+    @Override
+    public MenuSession switchTo(Player player, String menuId, Map<String, String> extra) {
+        ensureMainThread();
+        Target target = prepare(player, menuId, extra);
+        return sessions.switchSession(player, target.menu(), target.view(), target.handlers(),
+                target.hooks(), target.title(), target.content(), target.renderer());
+    }
+
+    /** Resolves everything needed to show a menu: no packets are sent here. */
+    private Target prepare(Player player, String menuId, Map<String, String> extra) {
         CompiledMenu menu = compiled(menuId);
         Map<String, String> safeExtra = extra == null ? Map.of() : extra;
         assertResolvable(menu, safeExtra);
@@ -209,8 +229,12 @@ public final class InMemoryMenuProvider implements MenuProvider {
         Component title = menu.renderTitle(scope);
         ItemStack[] content = renderFull(menu, view);
         MenuHooks menuHooks = hooks.getOrDefault(menuId, MenuHooks.empty());
-        return sessions.openSession(player, menu, view, handlers, menuHooks, title, content,
-                () -> renderFull(menu, view));
+        return new Target(menu, view, handlers, menuHooks, title, content, () -> renderFull(menu, view));
+    }
+
+    private record Target(CompiledMenu menu, MenuView view, Map<Integer, ClickHandler> handlers,
+                          MenuHooks hooks, Component title, ItemStack[] content,
+                          MenuSession.ContentRenderer renderer) {
     }
 
     @Override

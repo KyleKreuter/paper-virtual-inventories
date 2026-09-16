@@ -94,8 +94,7 @@ public final class DemoPlugin extends JavaPlugin implements CommandExecutor {
     }
 
     private void switchPage(Player player, String menuId) {
-        VirtualInventories.api().close(player);
-        menus.open(player, menuId);
+        menus.switchTo(player, menuId);
     }
 
     private static String itemName(ItemStack clicked) {

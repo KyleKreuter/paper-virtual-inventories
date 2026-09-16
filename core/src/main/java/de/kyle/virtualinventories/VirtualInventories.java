@@ -108,6 +108,21 @@ public final class VirtualInventories {
         return menus.open(player, menuId, extra);
     }
 
+    /**
+     * Switches the player's open window to another menu in place (no flicker).
+     * Falls back to close + reopen when no menu is open or size/title differ.
+     */
+    public MenuSession switchTo(Player player, String menuId) {
+        ensureActive();
+        return menus.switchTo(player, menuId);
+    }
+
+    /** Variant of {@link #switchTo(Player, String)} with per-open extra values. */
+    public MenuSession switchTo(Player player, String menuId, Map<String, String> extra) {
+        ensureActive();
+        return menus.switchTo(player, menuId, extra);
+    }
+
     /** Closes the player's virtual menu if one is open. Safe no-op otherwise. */
     public void close(Player player) {
         sessions.close(player);

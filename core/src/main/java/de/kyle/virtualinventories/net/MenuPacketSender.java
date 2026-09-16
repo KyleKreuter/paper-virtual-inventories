@@ -33,13 +33,16 @@ public final class MenuPacketSender {
     }
 
     public void sendFullContents(Player player, int containerId, int stateId,
-                                 org.bukkit.inventory.ItemStack[] content) {
+                                  org.bukkit.inventory.ItemStack[] content) {
         List<ItemStack> items = new ArrayList<>(content.length);
         for (org.bukkit.inventory.ItemStack stack : content) {
             items.add(toPacket(stack));
         }
-        WrapperPlayServerWindowItems windowItems =
-                new WrapperPlayServerWindowItems(containerId, stateId, items, ItemStack.EMPTY);
+        // The client adopts the carried item as its cursor content, so this
+        // must be the server-side truth and never a blind EMPTY, or a
+        // legitimately held item would vanish from the player's cursor.
+        WrapperPlayServerWindowItems windowItems = new WrapperPlayServerWindowItems(
+                containerId, stateId, items, toPacket(player.getItemOnCursor()));
         send(player, windowItems);
     }
 
@@ -51,12 +54,16 @@ public final class MenuPacketSender {
     }
 
     /**
-     * Clears the client-side cursor. The client predicts cursor changes on click,
-     * since we cancel every click server-side we must wipe the predicted cursor
-     * or ghost items appear.
+     * Syncs the client-side cursor to the server-side truth. The client predicts
+     * cursor changes on click; since we cancel every click server-side, a predicted
+     * pickup of a menu item (ghost item) must be reverted. But a blind EMPTY would
+     * also wipe an item the player legitimately holds (e.g. grabbed before opening
+     * the menu), so we always send back what the server actually has on the cursor.
+     *
+     * <p>Must run on the Bukkit main thread.</p>
      */
-    public void resetCursor(Player player) {
-        send(player, new WrapperPlayServerSetCursorItem(ItemStack.EMPTY));
+    public void syncCursor(Player player) {
+        send(player, new WrapperPlayServerSetCursorItem(toPacket(player.getItemOnCursor())));
     }
 
     public void sendClose(Player player, int containerId) {

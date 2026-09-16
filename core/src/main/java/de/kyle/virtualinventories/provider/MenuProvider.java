@@ -58,6 +58,16 @@ public interface MenuProvider {
 
     MenuSession open(Player player, String menuId, Map<String, String> extra);
 
+    /**
+     * Switches the player's open window to another menu without closing it
+     * (no flicker, same window id). Falls back to close + reopen when no menu
+     * is open or size/title differ (titles cannot change in place).
+     */
+    MenuSession switchTo(Player player, String menuId);
+
+    /** Variant of {@link #switchTo(Player, String)} with per-open extra values. */
+    MenuSession switchTo(Player player, String menuId, Map<String, String> extra);
+
     /** Re-resolves dynamic slots of the player's open menu and resends them. */
     void refreshDynamic(Player player);
 
